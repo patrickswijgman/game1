@@ -1,78 +1,60 @@
-import {
-  addVector,
-  addVectorScaled,
-  applyCameraTransform,
-  copyVector,
-  delta,
-  drawRect,
-  drawSprite,
-  drawText,
-  fps,
-  getRandomId,
-  getTexture,
-  InputCode,
-  isInputDown,
-  isRectangleValid,
-  loadRenderTexture,
-  loadSprite,
-  loadTexture,
-  normalizeVector,
-  rect,
-  Rectangle,
-  remove,
-  resetTransform,
-  resetVector,
-  run,
-  scaleTransform,
-  scaleVector,
-  setCamera,
-  translateTransform,
-  updateCamera,
-  vec,
-  Vector,
-  writeIntersectionBetweenRectangles,
-} from "ridder";
+import { addVector, addVectorScaled, applyCameraTransform, copyVector, delta, drawRect, drawSprite, drawText, fps, getRandomId, getTexture, getVectorDistance, InputCode, isInputDown, isInputPressed, isRectangleValid, loadRenderTexture, loadSprite, loadTexture, normalizeVector, rect, Rectangle, remove, resetTimer, resetTransform, resetVector, rotateTransform, run, scaleTransform, scaleVector, setCamera, tickTimer, timer, Timer, translateTransform, tween, updateCamera, vec, Vector, writeIntersectionBetweenRectangles } from "ridder";
 
-const DEBUG = false;
+const DEBUG = true;
+const PLAYER_SPEED = 1.125;
+const PLAYER_RANGE = 10;
+const PLAYER_INTERACT_TIME = 200;
 
-function loadSprites(
-  id: string,
-  textureId: string,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-) {
+function loadSprites(id: string, textureId: string, x: number, y: number, w: number, h: number) {
   loadSprite(id, textureId, x, y, w, h);
   loadSprite(`${id}_outline`, `${textureId}_outline`, x, y, w, h);
 }
 
+enum ArcheType {
+  NIL,
+  PLAYER,
+  TREE,
+  ROCK,
+}
+
 type Entity = {
   id: string;
+  archeType: ArcheType;
   pos: Vector;
   vel: Vector;
   body: Rectangle;
   bodyOffset: Vector;
-  bodyIntersectionResult: Vector;
+  intersection: Vector;
   spriteId: string;
   pivot: Vector;
-  isPlayer: boolean;
+  angle: number;
+  scale: number;
+  timer: Timer;
+  isRigid: boolean;
   isFlipped: boolean;
+  isInteractable: boolean;
+  isInteracting: boolean;
   isOutlineVisible: boolean;
 };
 
 function createEntity(scene: Scene, x: number, y: number) {
   const e: Entity = {
     id: getRandomId(),
+    archeType: ArcheType.NIL,
     pos: vec(x, y),
     vel: vec(),
     body: rect(),
     bodyOffset: vec(),
-    bodyIntersectionResult: vec(),
+    intersection: vec(),
     spriteId: "",
     pivot: vec(),
-    isPlayer: false,
+    angle: 0,
+    scale: 1,
+    timer: timer(),
+    isRigid: false,
     isFlipped: false,
+    isInteractable: false,
+    isInteracting: false,
     isOutlineVisible: false,
   };
   scene.entities[e.id] = e;
@@ -87,6 +69,7 @@ function destroyEntity(scene: Scene, id: string) {
 
 function setupPlayer(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
+  e.archeType = ArcheType.PLAYER;
   e.spriteId = "player";
   e.pivot.x = 8;
   e.pivot.y = 15;
@@ -94,19 +77,26 @@ function setupPlayer(scene: Scene, x: number, y: number) {
   e.body.h = 3;
   e.bodyOffset.x = -4;
   e.bodyOffset.y = -3;
-  e.isPlayer = true;
+  e.isRigid = true;
   scene.playerId = e.id;
 }
 
 function setupTree(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
+  e.archeType = ArcheType.TREE;
   e.spriteId = "tree";
   e.pivot.x = 16;
   e.pivot.y = 31;
+  e.body.w = 2;
+  e.body.h = 2;
+  e.bodyOffset.x = -1;
+  e.bodyOffset.y = -2;
+  e.isInteractable = true;
 }
 
 function setupRock(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
+  e.archeType = ArcheType.ROCK;
   e.spriteId = "rock";
   e.pivot.x = 8;
   e.pivot.y = 15;
@@ -114,6 +104,7 @@ function setupRock(scene: Scene, x: number, y: number) {
   e.body.h = 3;
   e.bodyOffset.x = -5;
   e.bodyOffset.y = -3;
+  e.isInteractable = true;
 }
 
 type Scene = {
@@ -122,6 +113,7 @@ type Scene = {
   visible: string[];
   destroyed: string[];
   playerId: string;
+  interactableId: string;
 };
 
 function createScene(id: string) {
@@ -131,8 +123,9 @@ function createScene(id: string) {
     visible: [],
     destroyed: [],
     playerId: "",
+    interactableId: "",
   };
-  scenes[id] = scene;
+  game.scenes[id] = scene;
   return scene;
 }
 
@@ -144,8 +137,47 @@ function setupWorldScene() {
   setCamera(120, 65);
 }
 
-const scenes: Record<string, Scene> = {};
-let sceneId = "";
+type Game = {
+  scenes: Record<string, Scene>;
+  sceneId: string;
+};
+
+const game: Game = {
+  scenes: {},
+  sceneId: "",
+};
+
+function findInteractable(scene: Scene, player: Entity) {
+  scene.interactableId = "";
+  let smallestDistance = Infinity;
+  for (const id of scene.active) {
+    const target = scene.entities[id];
+    const distance = getVectorDistance(player.pos, target.pos);
+    if (target.isInteractable && distance < PLAYER_RANGE && distance < smallestDistance) {
+      smallestDistance = distance;
+      scene.interactableId = id;
+    }
+  }
+}
+
+function cleanUpEntities(scene: Scene) {
+  if (scene.destroyed.length) {
+    for (const id of scene.destroyed) {
+      delete scene.entities[id];
+      remove(scene.active, id);
+      remove(scene.visible, id);
+    }
+    scene.destroyed.length = 0;
+  }
+}
+
+function depthSortEntities(scene: Scene) {
+  scene.visible.sort((idA, idB) => {
+    const a = scene.entities[idA];
+    const b = scene.entities[idB];
+    return a.pos.y - b.pos.y;
+  });
+}
 
 run({
   settings: {
@@ -173,89 +205,102 @@ run({
     loadSprites("tree", "atlas", 0, 16, 32, 32);
     loadSprites("rock", "atlas", 32, 32, 16, 16);
     setupWorldScene();
-    sceneId = "world";
+    game.sceneId = "world";
   },
 
   update: () => {
-    const scene = scenes[sceneId];
+    const scene = game.scenes[game.sceneId];
+    const player = scene.entities[scene.playerId];
 
     for (const id of scene.active) {
       const e = scene.entities[id];
 
-      if (e.isPlayer) {
-        resetVector(e.vel);
-        if (isInputDown(InputCode.KEY_LEFT)) {
-          e.vel.x -= 1;
-          e.isFlipped = true;
-        }
-        if (isInputDown(InputCode.KEY_RIGHT)) {
-          e.vel.x += 1;
-          e.isFlipped = false;
-        }
-        if (isInputDown(InputCode.KEY_UP)) {
-          e.vel.y -= 1;
-        }
-        if (isInputDown(InputCode.KEY_DOWN)) {
-          e.vel.y += 1;
-        }
-        normalizeVector(e.vel);
-        scaleVector(e.vel, 1.125);
-        addVectorScaled(e.pos, e.vel, delta);
-        updateCamera(e.pos.x, e.pos.y);
+      switch (e.archeType) {
+        case ArcheType.PLAYER:
+          {
+            if (e.isInteracting) {
+              if (tickTimer(e.timer, PLAYER_INTERACT_TIME)) {
+                e.isInteracting = false;
+                destroyEntity(scene, scene.interactableId);
+              }
+              e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer);
+            } else {
+              resetVector(e.vel);
+              if (isInputDown(InputCode.KEY_LEFT)) {
+                e.vel.x -= 1;
+                e.isFlipped = true;
+              }
+              if (isInputDown(InputCode.KEY_RIGHT)) {
+                e.vel.x += 1;
+                e.isFlipped = false;
+              }
+              if (isInputDown(InputCode.KEY_UP)) {
+                e.vel.y -= 1;
+              }
+              if (isInputDown(InputCode.KEY_DOWN)) {
+                e.vel.y += 1;
+              }
+              normalizeVector(e.vel);
+              scaleVector(e.vel, PLAYER_SPEED);
+              addVectorScaled(e.pos, e.vel, delta);
+              findInteractable(scene, e);
+              if (scene.interactableId && isInputPressed(InputCode.KEY_SPACE)) {
+                e.isInteracting = true;
+                resetTimer(e.timer);
+              }
+            }
+          }
+          break;
+        case ArcheType.TREE:
+          {
+            tickTimer(e.timer, Infinity);
+            e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer);
+          }
+          break;
       }
 
       if (isRectangleValid(e.body)) {
         copyVector(e.body, e.pos);
         addVector(e.body, e.bodyOffset);
-        resetVector(e.bodyIntersectionResult);
-
-        for (const id of scene.active) {
-          writeIntersectionBetweenRectangles(
-            e.body,
-            scene.entities[id].body,
-            e.vel,
-            e.bodyIntersectionResult,
-          );
-        }
-
-        const { x, y } = e.bodyIntersectionResult;
-        if (x) {
-          e.body.x += x;
-          e.pos.x += x;
-          e.vel.x = 0;
-        }
-        if (y) {
-          e.body.y += y;
-          e.pos.y += y;
-          e.vel.y = 0;
+        if (e.isRigid) {
+          resetVector(e.intersection);
+          for (const id of scene.active) {
+            const other = scene.entities[id];
+            writeIntersectionBetweenRectangles(e.body, other.body, e.vel, e.intersection);
+          }
+          if (e.intersection.x) {
+            e.body.x += e.intersection.x;
+            e.pos.x += e.intersection.x;
+            e.vel.x = 0;
+          }
+          if (e.intersection.y) {
+            e.body.y += e.intersection.y;
+            e.pos.y += e.intersection.y;
+            e.vel.y = 0;
+          }
         }
       }
+
+      e.isOutlineVisible = id === scene.interactableId;
     }
 
-    if (scene.destroyed.length) {
-      for (const id of scene.destroyed) {
-        delete scene.entities[id];
-        remove(scene.active, id);
-        remove(scene.visible, id);
-      }
-      scene.destroyed.length = 0;
-    }
-
-    scene.visible.sort((idA, idB) => {
-      const a = scene.entities[idA];
-      const b = scene.entities[idB];
-      return a.pos.y - b.pos.y;
-    });
+    updateCamera(player.pos.x, player.pos.y);
+    cleanUpEntities(scene);
+    depthSortEntities(scene);
 
     for (const id of scene.visible) {
       const e = scene.entities[id];
       resetTransform();
       applyCameraTransform();
       translateTransform(e.pos.x, e.pos.y);
+      scaleTransform(e.scale, e.scale);
+      rotateTransform(e.angle);
       if (e.isFlipped) {
         scaleTransform(-1, 1);
       }
-      drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
+      if (e.spriteId) {
+        drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
+      }
       if (e.isOutlineVisible) {
         drawSprite(`${e.spriteId}_outline`, -e.pivot.x, -e.pivot.y);
       }

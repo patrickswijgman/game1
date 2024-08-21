@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "description": "A game made with the Ridder engine.",
+  "type": "module",
   "scripts": {
     "start": "vite",
     "build": "vite build --base=./"
@@ -10,6 +11,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "prettier": "^3.3.3",
     "typescript": "^5.5.4",
     "vite": "^5.4.0"
   },
