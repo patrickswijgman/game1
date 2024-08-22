@@ -6,18 +6,22 @@ const HEIGHT = 180;
 const PLAYER_SPEED = 1.125;
 const PLAYER_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
+const ITEM_SEEK_TIME = 500;
 
 enum Type {
   NIL,
   PLAYER,
   TREE,
   ROCK,
+  ITEM_TWIG,
 }
 
 enum State {
   NIL,
   PLAYER_CONTROL,
   PLAYER_INTERACT,
+  ITEM_IDLE,
+  ITEM_SEEK,
 }
 
 type Entity = {
@@ -25,14 +29,17 @@ type Entity = {
   type: Type;
   pos: Vector;
   vel: Vector;
+  start: Vector;
   body: Rectangle;
   bodyOffset: Vector;
   intersection: Vector;
   spriteId: string;
   pivot: Vector;
+  offset: Vector;
   angle: number;
   scale: number;
   timer: Timer;
+  delay: Timer;
   state: State;
   isRigid: boolean;
   isFlipped: boolean;
@@ -46,14 +53,17 @@ function createEntity(scene: Scene, x: number, y: number) {
     type: Type.NIL,
     pos: vec(x, y),
     vel: vec(),
+    start: vec(x, y),
     body: rect(),
     bodyOffset: vec(),
     intersection: vec(),
     spriteId: "",
     pivot: vec(),
+    offset: vec(),
     angle: 0,
     scale: 1,
     timer: timer(),
+    delay: timer(),
     state: State.NIL,
     isRigid: false,
     isFlipped: false,
@@ -70,7 +80,7 @@ function destroyEntity(scene: Scene, id: string) {
   scene.destroyed.push(id);
 }
 
-function setupPlayer(scene: Scene, x: number, y: number) {
+function createPlayer(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
   e.type = Type.PLAYER;
   e.state = State.PLAYER_CONTROL;
@@ -85,7 +95,7 @@ function setupPlayer(scene: Scene, x: number, y: number) {
   scene.playerId = e.id;
 }
 
-function setupTree(scene: Scene, x: number, y: number) {
+function createTree(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
   e.type = Type.TREE;
   e.spriteId = "tree";
@@ -98,7 +108,7 @@ function setupTree(scene: Scene, x: number, y: number) {
   e.isInteractable = true;
 }
 
-function setupRock(scene: Scene, x: number, y: number) {
+function createRock(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
   e.type = Type.ROCK;
   e.spriteId = "rock";
@@ -109,6 +119,15 @@ function setupRock(scene: Scene, x: number, y: number) {
   e.bodyOffset.x = -5;
   e.bodyOffset.y = -3;
   e.isInteractable = true;
+}
+
+function createItemTwig(scene: Scene, x: number, y: number) {
+  const e = createEntity(scene, x, y);
+  e.type = Type.ITEM_TWIG;
+  e.state = State.ITEM_IDLE;
+  e.spriteId = "item_twig";
+  e.pivot.x = 4;
+  e.pivot.y = 8;
 }
 
 type Scene = {
@@ -133,11 +152,11 @@ function createScene(id: string) {
   return scene;
 }
 
-function setupWorldScene() {
+function createWorldScene() {
   const scene = createScene("world");
-  setupPlayer(scene, 160, 90);
-  setupTree(scene, 140, 80);
-  setupRock(scene, 120, 70);
+  createPlayer(scene, 160, 90);
+  createTree(scene, 140, 80);
+  createRock(scene, 120, 70);
   setCamera(160, 90);
 }
 
@@ -150,11 +169,6 @@ const game: Game = {
   scenes: {},
   sceneId: "",
 };
-
-function loadSprites(id: string, textureId: string, x: number, y: number, w: number, h: number) {
-  loadSprite(id, textureId, x, y, w, h);
-  loadSprite(`${id}_outline`, `${textureId}_outline`, x, y, w, h);
-}
 
 function findInteractable(scene: Scene, player: Entity) {
   scene.interactableId = "";
@@ -197,7 +211,12 @@ function setState(e: Entity, state: State) {
 
 async function setup() {
   await loadTexture("atlas", "textures/atlas.png");
-  loadRenderTexture("atlas_outline", 256, 256, (ctx) => {
+  loadSprite("player", "atlas", 0, 0, 16, 16);
+  loadSprite("tree", "atlas", 0, 16, 32, 32);
+  loadSprite("rock", "atlas", 32, 32, 16, 16);
+  loadSprite("item_twig", "atlas", 0, 48, 8, 8);
+
+  loadRenderTexture("atlas_outline", 256, 256, (ctx, w, h) => {
     const tex = getTexture("atlas");
     ctx.drawImage(tex, 0, -1);
     ctx.drawImage(tex, 1, 0);
@@ -205,14 +224,22 @@ async function setup() {
     ctx.drawImage(tex, -1, 0);
     ctx.globalCompositeOperation = "source-in";
     ctx.fillStyle = "white";
-    ctx.fillRect(0, 0, tex.width, tex.height);
+    ctx.fillRect(0, 0, w, h);
     ctx.globalCompositeOperation = "destination-out";
     ctx.drawImage(tex, 0, 0);
   });
-  loadSprites("player", "atlas", 0, 0, 16, 16);
-  loadSprites("tree", "atlas", 0, 16, 32, 32);
-  loadSprites("rock", "atlas", 32, 32, 16, 16);
-  setupWorldScene();
+  loadSprite("tree_outline", "atlas_outline", 0, 16, 32, 32);
+  loadSprite("rock_outline", "atlas_outline", 32, 32, 16, 16);
+
+  loadRenderTexture("atlas_flash", 256, 256, (ctx, w, h) => {
+    const tex = getTexture("atlas");
+    ctx.drawImage(tex, 0, 0);
+    ctx.globalCompositeOperation = "source-in";
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, w, h);
+  });
+
+  createWorldScene();
   game.sceneId = "world";
 }
 
@@ -257,8 +284,36 @@ function update() {
           if (tickTimer(e.timer, PLAYER_INTERACT_TIME)) {
             setState(e, State.PLAYER_CONTROL);
             destroyEntity(scene, scene.interactableId);
+            const interactable = scene.entities[scene.interactableId];
+            switch (interactable.type) {
+              case Type.TREE:
+                {
+                  createItemTwig(scene, interactable.pos.x, interactable.pos.y);
+                }
+                break;
+            }
           }
           e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer);
+        }
+        break;
+
+      case State.ITEM_IDLE:
+        {
+          tickTimer(e.timer, Infinity);
+          e.offset.y = tween(0, -2, 1000, "easeInOutSine", e.timer);
+          if (tickTimer(e.delay, 500)) {
+            setState(e, State.ITEM_SEEK);
+          }
+        }
+        break;
+
+      case State.ITEM_SEEK:
+        {
+          if (tickTimer(e.timer, ITEM_SEEK_TIME)) {
+            destroyEntity(scene, e.id);
+          }
+          e.pos.x = tween(e.start.x, player.pos.x, ITEM_SEEK_TIME, "easeInCirc", e.timer);
+          e.pos.y = tween(e.start.y, player.pos.y, ITEM_SEEK_TIME, "easeInCirc", e.timer);
         }
         break;
     }
@@ -311,6 +366,7 @@ function update() {
     resetTransform();
     applyCameraTransform();
     translateTransform(e.pos.x, e.pos.y);
+    translateTransform(e.offset.x, e.offset.y);
     scaleTransform(e.scale, e.scale);
     rotateTransform(e.angle);
     if (e.isFlipped) {
