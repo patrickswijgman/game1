@@ -1,6 +1,6 @@
 import { addVector, addVectorScaled, applyCameraTransform, copyVector, delta, drawRect, drawSprite, drawText, fps, getRandomId, getTexture, getVectorDistance, InputCode, isInputDown, isInputPressed, isRectangleValid, loadRenderTexture, loadSprite, loadTexture, normalizeVector, rect, Rectangle, remove, resetTimer, resetTransform, resetVector, rotateTransform, run, scaleTransform, scaleVector, setCamera, tickTimer, timer, Timer, translateTransform, tween, updateCamera, vec, Vector, writeIntersectionBetweenRectangles } from "ridder";
 
-const DEBUG = true;
+const DEBUG = false;
 const PLAYER_SPEED = 1.125;
 const PLAYER_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
@@ -10,16 +10,22 @@ function loadSprites(id: string, textureId: string, x: number, y: number, w: num
   loadSprite(`${id}_outline`, `${textureId}_outline`, x, y, w, h);
 }
 
-enum ArcheType {
+enum Type {
   NIL,
   PLAYER,
   TREE,
   ROCK,
 }
 
+enum State {
+  NIL,
+  PLAYER_CONTROL,
+  PLAYER_INTERACT,
+}
+
 type Entity = {
   id: string;
-  archeType: ArcheType;
+  type: Type;
   pos: Vector;
   vel: Vector;
   body: Rectangle;
@@ -30,17 +36,17 @@ type Entity = {
   angle: number;
   scale: number;
   timer: Timer;
+  state: State;
   isRigid: boolean;
   isFlipped: boolean;
   isInteractable: boolean;
-  isInteracting: boolean;
   isOutlineVisible: boolean;
 };
 
 function createEntity(scene: Scene, x: number, y: number) {
   const e: Entity = {
     id: getRandomId(),
-    archeType: ArcheType.NIL,
+    type: Type.NIL,
     pos: vec(x, y),
     vel: vec(),
     body: rect(),
@@ -51,10 +57,10 @@ function createEntity(scene: Scene, x: number, y: number) {
     angle: 0,
     scale: 1,
     timer: timer(),
+    state: State.NIL,
     isRigid: false,
     isFlipped: false,
     isInteractable: false,
-    isInteracting: false,
     isOutlineVisible: false,
   };
   scene.entities[e.id] = e;
@@ -69,7 +75,8 @@ function destroyEntity(scene: Scene, id: string) {
 
 function setupPlayer(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.archeType = ArcheType.PLAYER;
+  e.type = Type.PLAYER;
+  e.state = State.PLAYER_CONTROL;
   e.spriteId = "player";
   e.pivot.x = 8;
   e.pivot.y = 15;
@@ -83,7 +90,7 @@ function setupPlayer(scene: Scene, x: number, y: number) {
 
 function setupTree(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.archeType = ArcheType.TREE;
+  e.type = Type.TREE;
   e.spriteId = "tree";
   e.pivot.x = 16;
   e.pivot.y = 31;
@@ -96,7 +103,7 @@ function setupTree(scene: Scene, x: number, y: number) {
 
 function setupRock(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.archeType = ArcheType.ROCK;
+  e.type = Type.ROCK;
   e.spriteId = "rock";
   e.pivot.x = 8;
   e.pivot.y = 15;
@@ -131,10 +138,10 @@ function createScene(id: string) {
 
 function setupWorldScene() {
   const scene = createScene("world");
-  setupPlayer(scene, 120, 65);
-  setupTree(scene, 100, 50);
-  setupRock(scene, 120, 40);
-  setCamera(120, 65);
+  setupPlayer(scene, 160, 90);
+  setupTree(scene, 140, 80);
+  setupRock(scene, 120, 70);
+  setCamera(160, 90);
 }
 
 type Game = {
@@ -154,8 +161,8 @@ function findInteractable(scene: Scene, player: Entity) {
     const target = scene.entities[id];
     const distance = getVectorDistance(player.pos, target.pos);
     if (target.isInteractable && distance < PLAYER_RANGE && distance < smallestDistance) {
-      smallestDistance = distance;
       scene.interactableId = id;
+      smallestDistance = distance;
     }
   }
 }
@@ -177,6 +184,13 @@ function depthSortEntities(scene: Scene) {
     const b = scene.entities[idB];
     return a.pos.y - b.pos.y;
   });
+}
+
+function setState(e: Entity, state: State) {
+  if (e.state !== state) {
+    e.state = state;
+    resetTimer(e.timer);
+  }
 }
 
 run({
@@ -215,43 +229,53 @@ run({
     for (const id of scene.active) {
       const e = scene.entities[id];
 
-      switch (e.archeType) {
-        case ArcheType.PLAYER:
+      switch (e.state) {
+        case State.PLAYER_CONTROL:
           {
-            if (e.isInteracting) {
-              if (tickTimer(e.timer, PLAYER_INTERACT_TIME)) {
-                e.isInteracting = false;
-                destroyEntity(scene, scene.interactableId);
-              }
-              e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer);
-            } else {
-              resetVector(e.vel);
-              if (isInputDown(InputCode.KEY_LEFT)) {
-                e.vel.x -= 1;
-                e.isFlipped = true;
-              }
-              if (isInputDown(InputCode.KEY_RIGHT)) {
-                e.vel.x += 1;
-                e.isFlipped = false;
-              }
-              if (isInputDown(InputCode.KEY_UP)) {
-                e.vel.y -= 1;
-              }
-              if (isInputDown(InputCode.KEY_DOWN)) {
-                e.vel.y += 1;
-              }
-              normalizeVector(e.vel);
-              scaleVector(e.vel, PLAYER_SPEED);
-              addVectorScaled(e.pos, e.vel, delta);
-              findInteractable(scene, e);
-              if (scene.interactableId && isInputPressed(InputCode.KEY_SPACE)) {
-                e.isInteracting = true;
-                resetTimer(e.timer);
-              }
+            resetVector(e.vel);
+            if (isInputDown(InputCode.KEY_LEFT)) {
+              e.vel.x -= 1;
+              e.isFlipped = true;
+            }
+            if (isInputDown(InputCode.KEY_RIGHT)) {
+              e.vel.x += 1;
+              e.isFlipped = false;
+            }
+            if (isInputDown(InputCode.KEY_UP)) {
+              e.vel.y -= 1;
+            }
+            if (isInputDown(InputCode.KEY_DOWN)) {
+              e.vel.y += 1;
+            }
+            normalizeVector(e.vel);
+            scaleVector(e.vel, PLAYER_SPEED);
+            addVectorScaled(e.pos, e.vel, delta);
+            findInteractable(scene, e);
+            const interactable = scene.entities[scene.interactableId];
+            if (interactable && isInputPressed(InputCode.KEY_SPACE)) {
+              setState(e, State.PLAYER_INTERACT);
             }
           }
           break;
-        case ArcheType.TREE:
+
+        case State.PLAYER_INTERACT:
+          {
+            if (tickTimer(e.timer, PLAYER_INTERACT_TIME)) {
+              setState(e, State.PLAYER_CONTROL);
+              destroyEntity(scene, scene.interactableId);
+            }
+            e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer);
+          }
+          break;
+      }
+
+      switch (e.type) {
+        case Type.PLAYER:
+          {
+          }
+          break;
+
+        case Type.TREE:
           {
             tickTimer(e.timer, Infinity);
             e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer);
