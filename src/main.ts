@@ -1,14 +1,11 @@
 import { addVector, addVectorScaled, applyCameraTransform, copyVector, delta, drawRect, drawSprite, drawText, fps, getRandomId, getTexture, getVectorDistance, InputCode, isInputDown, isInputPressed, isRectangleValid, loadRenderTexture, loadSprite, loadTexture, normalizeVector, rect, Rectangle, remove, resetTimer, resetTransform, resetVector, rotateTransform, run, scaleTransform, scaleVector, setCamera, tickTimer, timer, Timer, translateTransform, tween, updateCamera, vec, Vector, writeIntersectionBetweenRectangles } from "ridder";
 
 const DEBUG = false;
+const WIDTH = 320;
+const HEIGHT = 180;
 const PLAYER_SPEED = 1.125;
 const PLAYER_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
-
-function loadSprites(id: string, textureId: string, x: number, y: number, w: number, h: number) {
-  loadSprite(id, textureId, x, y, w, h);
-  loadSprite(`${id}_outline`, `${textureId}_outline`, x, y, w, h);
-}
 
 enum Type {
   NIL,
@@ -154,6 +151,11 @@ const game: Game = {
   sceneId: "",
 };
 
+function loadSprites(id: string, textureId: string, x: number, y: number, w: number, h: number) {
+  loadSprite(id, textureId, x, y, w, h);
+  loadSprite(`${id}_outline`, `${textureId}_outline`, x, y, w, h);
+}
+
 function findInteractable(scene: Scene, player: Entity) {
   scene.interactableId = "";
   let smallestDistance = Infinity;
@@ -193,151 +195,153 @@ function setState(e: Entity, state: State) {
   }
 }
 
+async function setup() {
+  await loadTexture("atlas", "textures/atlas.png");
+  loadRenderTexture("atlas_outline", 256, 256, (ctx) => {
+    const tex = getTexture("atlas");
+    ctx.drawImage(tex, 0, -1);
+    ctx.drawImage(tex, 1, 0);
+    ctx.drawImage(tex, 0, 1);
+    ctx.drawImage(tex, -1, 0);
+    ctx.globalCompositeOperation = "source-in";
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, tex.width, tex.height);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.drawImage(tex, 0, 0);
+  });
+  loadSprites("player", "atlas", 0, 0, 16, 16);
+  loadSprites("tree", "atlas", 0, 16, 32, 32);
+  loadSprites("rock", "atlas", 32, 32, 16, 16);
+  setupWorldScene();
+  game.sceneId = "world";
+}
+
+function update() {
+  const scene = game.scenes[game.sceneId];
+  const player = scene.entities[scene.playerId];
+
+  for (const id of scene.active) {
+    const e = scene.entities[id];
+
+    switch (e.state) {
+      case State.PLAYER_CONTROL:
+        {
+          resetVector(e.vel);
+          if (isInputDown(InputCode.KEY_LEFT)) {
+            e.vel.x -= 1;
+            e.isFlipped = true;
+          }
+          if (isInputDown(InputCode.KEY_RIGHT)) {
+            e.vel.x += 1;
+            e.isFlipped = false;
+          }
+          if (isInputDown(InputCode.KEY_UP)) {
+            e.vel.y -= 1;
+          }
+          if (isInputDown(InputCode.KEY_DOWN)) {
+            e.vel.y += 1;
+          }
+          normalizeVector(e.vel);
+          scaleVector(e.vel, PLAYER_SPEED);
+          addVectorScaled(e.pos, e.vel, delta);
+          findInteractable(scene, e);
+          const interactable = scene.entities[scene.interactableId];
+          if (interactable && isInputPressed(InputCode.KEY_SPACE)) {
+            setState(e, State.PLAYER_INTERACT);
+          }
+        }
+        break;
+
+      case State.PLAYER_INTERACT:
+        {
+          if (tickTimer(e.timer, PLAYER_INTERACT_TIME)) {
+            setState(e, State.PLAYER_CONTROL);
+            destroyEntity(scene, scene.interactableId);
+          }
+          e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer);
+        }
+        break;
+    }
+
+    switch (e.type) {
+      case Type.PLAYER:
+        {
+        }
+        break;
+
+      case Type.TREE:
+        {
+          tickTimer(e.timer, Infinity);
+          e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer);
+        }
+        break;
+    }
+
+    if (isRectangleValid(e.body)) {
+      copyVector(e.body, e.pos);
+      addVector(e.body, e.bodyOffset);
+      if (e.isRigid) {
+        resetVector(e.intersection);
+        for (const id of scene.active) {
+          const other = scene.entities[id];
+          writeIntersectionBetweenRectangles(e.body, other.body, e.vel, e.intersection);
+        }
+        if (e.intersection.x) {
+          e.body.x += e.intersection.x;
+          e.pos.x += e.intersection.x;
+          e.vel.x = 0;
+        }
+        if (e.intersection.y) {
+          e.body.y += e.intersection.y;
+          e.pos.y += e.intersection.y;
+          e.vel.y = 0;
+        }
+      }
+    }
+
+    e.isOutlineVisible = id === scene.interactableId;
+  }
+
+  updateCamera(player.pos.x, player.pos.y);
+  cleanUpEntities(scene);
+  depthSortEntities(scene);
+
+  for (const id of scene.visible) {
+    const e = scene.entities[id];
+    resetTransform();
+    applyCameraTransform();
+    translateTransform(e.pos.x, e.pos.y);
+    scaleTransform(e.scale, e.scale);
+    rotateTransform(e.angle);
+    if (e.isFlipped) {
+      scaleTransform(-1, 1);
+    }
+    if (e.spriteId) {
+      drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
+    }
+    if (e.isOutlineVisible) {
+      drawSprite(`${e.spriteId}_outline`, -e.pivot.x, -e.pivot.y);
+    }
+    if (DEBUG) {
+      resetTransform();
+      applyCameraTransform();
+      drawRect(e.body, "red");
+    }
+  }
+
+  resetTransform();
+  translateTransform(1, 1);
+  scaleTransform(0.125, 0.125);
+  drawText(fps.toString(), 0, 0, "lime");
+}
+
 run({
   settings: {
-    width: 320,
-    height: 180,
+    width: WIDTH,
+    height: HEIGHT,
     cameraSmoothing: 0.05,
     background: "#1e1e1e",
   },
-
-  setup: async () => {
-    await loadTexture("atlas", "textures/atlas.png");
-    loadRenderTexture("atlas_outline", 256, 256, (ctx) => {
-      const tex = getTexture("atlas");
-      ctx.drawImage(tex, 0, -1);
-      ctx.drawImage(tex, 1, 0);
-      ctx.drawImage(tex, 0, 1);
-      ctx.drawImage(tex, -1, 0);
-      ctx.globalCompositeOperation = "source-in";
-      ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, tex.width, tex.height);
-      ctx.globalCompositeOperation = "destination-out";
-      ctx.drawImage(tex, 0, 0);
-    });
-    loadSprites("player", "atlas", 0, 0, 16, 16);
-    loadSprites("tree", "atlas", 0, 16, 32, 32);
-    loadSprites("rock", "atlas", 32, 32, 16, 16);
-    setupWorldScene();
-    game.sceneId = "world";
-  },
-
-  update: () => {
-    const scene = game.scenes[game.sceneId];
-    const player = scene.entities[scene.playerId];
-
-    for (const id of scene.active) {
-      const e = scene.entities[id];
-
-      switch (e.state) {
-        case State.PLAYER_CONTROL:
-          {
-            resetVector(e.vel);
-            if (isInputDown(InputCode.KEY_LEFT)) {
-              e.vel.x -= 1;
-              e.isFlipped = true;
-            }
-            if (isInputDown(InputCode.KEY_RIGHT)) {
-              e.vel.x += 1;
-              e.isFlipped = false;
-            }
-            if (isInputDown(InputCode.KEY_UP)) {
-              e.vel.y -= 1;
-            }
-            if (isInputDown(InputCode.KEY_DOWN)) {
-              e.vel.y += 1;
-            }
-            normalizeVector(e.vel);
-            scaleVector(e.vel, PLAYER_SPEED);
-            addVectorScaled(e.pos, e.vel, delta);
-            findInteractable(scene, e);
-            const interactable = scene.entities[scene.interactableId];
-            if (interactable && isInputPressed(InputCode.KEY_SPACE)) {
-              setState(e, State.PLAYER_INTERACT);
-            }
-          }
-          break;
-
-        case State.PLAYER_INTERACT:
-          {
-            if (tickTimer(e.timer, PLAYER_INTERACT_TIME)) {
-              setState(e, State.PLAYER_CONTROL);
-              destroyEntity(scene, scene.interactableId);
-            }
-            e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer);
-          }
-          break;
-      }
-
-      switch (e.type) {
-        case Type.PLAYER:
-          {
-          }
-          break;
-
-        case Type.TREE:
-          {
-            tickTimer(e.timer, Infinity);
-            e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer);
-          }
-          break;
-      }
-
-      if (isRectangleValid(e.body)) {
-        copyVector(e.body, e.pos);
-        addVector(e.body, e.bodyOffset);
-        if (e.isRigid) {
-          resetVector(e.intersection);
-          for (const id of scene.active) {
-            const other = scene.entities[id];
-            writeIntersectionBetweenRectangles(e.body, other.body, e.vel, e.intersection);
-          }
-          if (e.intersection.x) {
-            e.body.x += e.intersection.x;
-            e.pos.x += e.intersection.x;
-            e.vel.x = 0;
-          }
-          if (e.intersection.y) {
-            e.body.y += e.intersection.y;
-            e.pos.y += e.intersection.y;
-            e.vel.y = 0;
-          }
-        }
-      }
-
-      e.isOutlineVisible = id === scene.interactableId;
-    }
-
-    updateCamera(player.pos.x, player.pos.y);
-    cleanUpEntities(scene);
-    depthSortEntities(scene);
-
-    for (const id of scene.visible) {
-      const e = scene.entities[id];
-      resetTransform();
-      applyCameraTransform();
-      translateTransform(e.pos.x, e.pos.y);
-      scaleTransform(e.scale, e.scale);
-      rotateTransform(e.angle);
-      if (e.isFlipped) {
-        scaleTransform(-1, 1);
-      }
-      if (e.spriteId) {
-        drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
-      }
-      if (e.isOutlineVisible) {
-        drawSprite(`${e.spriteId}_outline`, -e.pivot.x, -e.pivot.y);
-      }
-      if (DEBUG) {
-        resetTransform();
-        applyCameraTransform();
-        drawRect(e.body, "red");
-      }
-    }
-
-    resetTransform();
-    translateTransform(1, 1);
-    scaleTransform(0.125, 0.125);
-    drawText(fps.toString(), 0, 0, "lime");
-  },
+  setup,
+  update,
 });
