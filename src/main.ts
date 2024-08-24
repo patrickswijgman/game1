@@ -1,4 +1,4 @@
-import { addVector, addVectorScaled, applyCameraTransform, copyVector, delta, drawRect, drawSprite, drawText, fps, getRandomId, getRandomIntInRange, getTexture, getVectorDistance, InputCode, isInputDown, isInputPressed, isRectangleValid, loadRenderTexture, loadSprite, loadTexture, normalizeVector, rect, Rectangle, remove, resetTimer, resetTransform, resetVector, rotateTransform, run, scaleTransform, scaleVector, setCamera, tickTimer, timer, Timer, translateTransform, tween, updateCamera, vec, Vector, writeIntersectionBetweenRectangles } from "ridder";
+import { addVector, addVectorScaled, applyCameraTransform, copyVector, delta, drawRect, drawSprite, drawText, fps, getRandomId, getRandomIntInRange, getVectorDistance, InputCode, isInputDown, isRectangleValid, loadSprite, loadTexture, normalizeVector, rect, Rectangle, remove, resetTimer, resetTransform, resetVector, rotateTransform, run, scaleTransform, scaleVector, setCamera, tickTimer, timer, Timer, translateTransform, tween, updateCamera, vec, Vector, writeIntersectionBetweenRectangles } from "ridder";
 import { loadFlashTexture, loadOutlineTexture, repeat } from "./engine.ts";
 
 const DEBUG = false;
@@ -44,6 +44,7 @@ type Entity = {
   scale: number;
   timer: Timer;
   delay: Timer;
+  health: number;
   isRigid: boolean;
   isFlipped: boolean;
   isInteractable: boolean;
@@ -68,6 +69,7 @@ function createEntity(scene: Scene, x: number, y: number) {
     scale: 1,
     timer: timer(),
     delay: timer(),
+    health: 0,
     isRigid: false,
     isFlipped: false,
     isInteractable: false,
@@ -95,6 +97,7 @@ function createPlayer(scene: Scene, x: number, y: number) {
   e.bodyOffset.x = -4;
   e.bodyOffset.y = -3;
   e.isRigid = true;
+  e.health = 1;
   scene.playerId = e.id;
 }
 
@@ -109,6 +112,7 @@ function createTree(scene: Scene, x: number, y: number) {
   e.body.h = 2;
   e.bodyOffset.x = -1;
   e.bodyOffset.y = -2;
+  e.health = 3;
   e.isInteractable = true;
 }
 
@@ -260,7 +264,7 @@ function updateState(scene: Scene, e: Entity) {
         addVectorScaled(e.pos, e.vel, delta);
         findNearestInteractable(scene, e);
         const interactable = scene.entities[scene.interactableId];
-        if (interactable && isInputPressed(InputCode.KEY_SPACE)) {
+        if (interactable && isInputDown(InputCode.KEY_Z)) {
           setState(e, State.PLAYER_INTERACT);
         }
       }
@@ -270,8 +274,12 @@ function updateState(scene: Scene, e: Entity) {
       {
         e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer);
         if (tickTimer(e.timer, PLAYER_INTERACT_TIME)) {
-          destroyEntity(scene, scene.interactableId);
-          dropItems(scene, scene.entities[scene.interactableId]);
+          const interactable = scene.entities[scene.interactableId];
+          interactable.health -= 1;
+          if (interactable.health <= 0) {
+            destroyEntity(scene, interactable.id);
+            dropItems(scene, interactable);
+          }
           setState(e, State.PLAYER_CONTROL);
         }
       }
