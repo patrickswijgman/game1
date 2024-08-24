@@ -1,5 +1,4 @@
-import { addVector, addVectorScaled, applyCameraTransform, copyVector, delta, drawRect, drawSprite, drawText, fps, getRandomId, getRandomIntInRange, getVectorDistance, InputCode, isInputDown, isRectangleValid, loadSprite, loadTexture, normalizeVector, rect, Rectangle, remove, resetTimer, resetTransform, resetVector, rotateTransform, run, scaleTransform, scaleVector, setCamera, tickTimer, timer, Timer, translateTransform, tween, updateCamera, vec, Vector, writeIntersectionBetweenRectangles } from "ridder";
-import { loadFlashTexture, loadOutlineTexture, repeat } from "./engine.ts";
+import { addVector, addVectorScaled, applyCameraTransform, copyVector, createFlashTextureFromTexture, createOutlineTextureFromTexture, createSprite, delta, drawRect, drawRectInstance, drawSprite, drawText, fps, getRandomId, getRandomIntInRange, getVectorDistance, InputCode, isInputDown, isRectangleValid, loadFont, loadTexture, normalizeVector, rect, Rectangle, remove, repeat, resetTimer, resetTransform, resetVector, rotateTransform, run, scaleTransform, scaleVector, setCamera, tickTimer, timer, Timer, translateTransform, tween, updateCamera, vec, Vector, writeIntersectionBetweenRectangles } from "ridder";
 
 const DEBUG = false;
 const WIDTH = 320;
@@ -15,7 +14,7 @@ enum Type {
   PLAYER = "player",
   TREE = "tree",
   ROCK = "rock",
-  ITEM_TWIG = "item_twig",
+  ITEM = "item",
 }
 
 enum State {
@@ -27,10 +26,16 @@ enum State {
   TREE_IDLE = "tree_idle",
 }
 
+enum Item {
+  NIL = "",
+  TWIG = "twig",
+}
+
 type Entity = {
   id: string;
   type: Type;
   state: State;
+  item: Item;
   pos: Vector;
   vel: Vector;
   start: Vector;
@@ -56,6 +61,7 @@ function createEntity(scene: Scene, x: number, y: number) {
     id: getRandomId(),
     type: Type.NIL,
     state: State.NIL,
+    item: Item.NIL,
     pos: vec(x, y),
     vel: vec(),
     start: vec(x, y),
@@ -131,8 +137,9 @@ function createRock(scene: Scene, x: number, y: number) {
 
 function createItemTwig(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.type = Type.ITEM_TWIG;
+  e.type = Type.ITEM;
   e.state = State.ITEM_IDLE;
+  e.item = Item.TWIG;
   e.spriteId = "item_twig";
   e.pivot.x = 4;
   e.pivot.y = 8;
@@ -163,33 +170,54 @@ function createScene(id: string) {
 function createWorldScene() {
   const scene = createScene("world");
   createPlayer(scene, 160, 90);
-  createTree(scene, 140, 80);
+  repeat(100, () => createTree(scene, getRandomIntInRange(0, WIDTH), getRandomIntInRange(0, HEIGHT)));
   createRock(scene, 120, 70);
   setCamera(160, 90);
+}
+
+type ItemData = {
+  name: string;
+  spriteId: string;
+  count: number;
+};
+
+function createItem(id: Item, name: string, spriteId: string) {
+  const item: ItemData = {
+    name,
+    spriteId,
+    count: 0,
+  };
+  game.inventory[id] = item;
+  return item;
 }
 
 type Game = {
   scenes: Record<string, Scene>;
   sceneId: string;
+  inventory: Record<string, ItemData>;
 };
 
 const game: Game = {
   scenes: {},
   sceneId: "",
+  inventory: {},
 };
 
 async function setup() {
   await loadTexture("atlas", "textures/atlas.png");
-  loadSprite("player", "atlas", 0, 0, 16, 16);
-  loadSprite("tree", "atlas", 0, 16, 32, 32);
-  loadSprite("rock", "atlas", 32, 32, 16, 16);
-  loadSprite("item_twig", "atlas", 0, 48, 8, 8);
+  createOutlineTextureFromTexture("atlas_outline", "atlas", "circle", "white");
+  createFlashTextureFromTexture("atlas_flash", "atlas", "white");
 
-  loadOutlineTexture("atlas_outline", "atlas", "circle");
-  loadSprite("tree_outline", "atlas_outline", 0, 16, 32, 32);
-  loadSprite("rock_outline", "atlas_outline", 32, 32, 16, 16);
+  createSprite("player", "atlas", 0, 0, 16, 16);
+  createSprite("tree", "atlas", 0, 16, 32, 32);
+  createSprite("tree_outline", "atlas_outline", 0, 16, 32, 32);
+  createSprite("rock", "atlas", 32, 32, 16, 16);
+  createSprite("rock_outline", "atlas_outline", 32, 32, 16, 16);
+  createSprite("item_twig", "atlas", 0, 48, 8, 8);
 
-  loadFlashTexture("atlas_flash", "atlas");
+  createItem(Item.TWIG, "Twig", "item_twig");
+
+  await loadFont("default", "fonts/pixelmix.ttf", "pixelmix", 8);
 
   createWorldScene();
   game.sceneId = "world";
@@ -209,35 +237,7 @@ function update() {
   updateCamera(player.pos.x, player.pos.y);
   cleanUpEntities(scene);
   depthSortEntities(scene);
-
-  for (const id of scene.visible) {
-    const e = scene.entities[id];
-    resetTransform();
-    applyCameraTransform();
-    translateTransform(e.pos.x, e.pos.y);
-    translateTransform(e.offset.x, e.offset.y);
-    scaleTransform(e.scale, e.scale);
-    rotateTransform(e.angle);
-    if (e.isFlipped) {
-      scaleTransform(-1, 1);
-    }
-    if (e.spriteId) {
-      drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
-    }
-    if (e.isOutlineVisible) {
-      drawSprite(`${e.spriteId}_outline`, -e.pivot.x, -e.pivot.y);
-    }
-    if (DEBUG) {
-      resetTransform();
-      applyCameraTransform();
-      drawRect(e.body, "red");
-    }
-  }
-
-  resetTransform();
-  translateTransform(1, 1);
-  scaleTransform(0.125, 0.125);
-  drawText(fps.toString(), 0, 0, "lime");
+  render(scene);
 }
 
 function updateState(scene: Scene, e: Entity) {
@@ -301,6 +301,8 @@ function updateState(scene: Scene, e: Entity) {
         e.pos.x = tween(e.start.x, player.pos.x, ITEM_SEEK_TIME, "easeInCirc", e.timer);
         e.pos.y = tween(e.start.y, player.pos.y, ITEM_SEEK_TIME, "easeInCirc", e.timer);
         if (tickTimer(e.timer, ITEM_SEEK_TIME)) {
+          const item = game.inventory[e.item];
+          item.count += 1;
           destroyEntity(scene, e.id);
         }
       }
@@ -387,6 +389,60 @@ function setState(e: Entity, state: State) {
     resetTimer(e.timer);
     resetTimer(e.delay);
   }
+}
+
+function render(scene: Scene) {
+  renderEntities(scene);
+  renderInventory();
+  renderMetrics();
+}
+
+function renderEntities(scene: Scene) {
+  for (const id of scene.visible) {
+    const e = scene.entities[id];
+    resetTransform();
+    applyCameraTransform();
+    translateTransform(e.pos.x, e.pos.y);
+    translateTransform(e.offset.x, e.offset.y);
+    scaleTransform(e.scale, e.scale);
+    rotateTransform(e.angle);
+    if (e.isFlipped) {
+      scaleTransform(-1, 1);
+    }
+    if (e.spriteId) {
+      drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
+    }
+    if (e.isOutlineVisible) {
+      drawSprite(`${e.spriteId}_outline`, -e.pivot.x, -e.pivot.y);
+    }
+    if (DEBUG) {
+      resetTransform();
+      applyCameraTransform();
+      drawRectInstance(e.body, "red");
+    }
+  }
+}
+
+function renderInventory() {
+  renderInventoryItem(Item.TWIG, 4, 4);
+}
+
+function renderInventoryItem(id: Item, x: number, y: number) {
+  const item = game.inventory[id];
+  resetTransform();
+  translateTransform(x, y);
+  drawRect(0, 0, 10, 10, "rgba(0,0,0,0.5)", true);
+  drawSprite(item.spriteId, 0, 0);
+  translateTransform(10, 5);
+  scaleTransform(0.5, 0.5);
+  drawText(item.count.toString(), 0, 0, "white", "right");
+}
+
+function renderMetrics() {
+  resetTransform();
+  translateTransform(1, 1);
+  scaleTransform(0.125, 0.125);
+  drawText(fps.toString(), 0, 0, "lime");
 }
 
 run({
