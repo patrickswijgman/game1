@@ -1,4 +1,49 @@
-import { addVector, addVectorScaled, applyCameraTransform, copyVector, createFlashTextureFromTexture, createOutlineTextureFromTexture, createSprite, delta, drawRect, drawRectInstance, drawSprite, drawText, fps, getRandomId, getRandomIntInRange, getVectorDistance, InputCode, isInputDown, isRectangleValid, loadFont, loadTexture, normalizeVector, rect, Rectangle, remove, repeat, resetTimer, resetTransform, resetVector, rotateTransform, run, scaleTransform, scaleVector, setCamera, tickTimer, timer, Timer, translateTransform, tween, updateCamera, vec, Vector, writeIntersectionBetweenRectangles } from "ridder";
+import {
+  addVector,
+  addVectorScaled,
+  applyCameraTransform,
+  copyVector,
+  delta,
+  drawRect,
+  drawRectInstance,
+  drawSprite,
+  drawText,
+  fps,
+  getVectorDistance,
+  InputCode,
+  isInputDown,
+  isRectangleValid,
+  loadFlashTexture,
+  loadFont,
+  loadOutlineTexture,
+  loadSprite,
+  loadTexture,
+  normalizeVector,
+  random,
+  rect,
+  Rectangle,
+  remove,
+  repeat,
+  resetTimer,
+  resetTransform,
+  resetVector,
+  roll,
+  rotateTransform,
+  run,
+  scaleTransform,
+  scaleVector,
+  setCamera,
+  tickTimer,
+  timer,
+  Timer,
+  translateTransform,
+  tween,
+  updateCamera,
+  uuid,
+  vec,
+  Vector,
+  writeIntersectionBetweenRectangles,
+} from "ridder";
 
 const DEBUG = false;
 const WIDTH = 320;
@@ -9,16 +54,8 @@ const PLAYER_INTERACT_TIME = 200;
 const ITEM_SEEK_TIME = 200;
 const ITEM_SEEK_DELAY = 500;
 
-enum Type {
-  NIL = "",
-  PLAYER = "player",
-  TREE = "tree",
-  ROCK = "rock",
-  ITEM = "item",
-}
-
-enum State {
-  NIL = "",
+enum StateId {
+  NONE = "",
   PLAYER_CONTROL = "player_control",
   PLAYER_INTERACT = "player_interact",
   ITEM_IDLE = "item_idle",
@@ -26,16 +63,26 @@ enum State {
   TREE_IDLE = "tree_idle",
 }
 
-enum Item {
-  NIL = "",
+enum ItemId {
+  NONE = "",
   TWIG = "twig",
 }
 
+enum SceneId {
+  WORLD = "world",
+}
+
+type Drop = {
+  item: ItemId;
+  chance: number;
+  minAmount: number;
+  maxAmount: number;
+};
+
 type Entity = {
   id: string;
-  type: Type;
-  state: State;
-  item: Item;
+  state: StateId;
+  item: ItemId;
   pos: Vector;
   vel: Vector;
   start: Vector;
@@ -47,8 +94,9 @@ type Entity = {
   offset: Vector;
   angle: number;
   scale: number;
-  timer: Timer;
-  delay: Timer;
+  timer1: Timer;
+  timer2: Timer;
+  drops: Drop[];
   health: number;
   isRigid: boolean;
   isFlipped: boolean;
@@ -58,10 +106,9 @@ type Entity = {
 
 function createEntity(scene: Scene, x: number, y: number) {
   const e: Entity = {
-    id: getRandomId(),
-    type: Type.NIL,
-    state: State.NIL,
-    item: Item.NIL,
+    id: uuid(),
+    state: StateId.NONE,
+    item: ItemId.NONE,
     pos: vec(x, y),
     vel: vec(),
     start: vec(x, y),
@@ -73,8 +120,9 @@ function createEntity(scene: Scene, x: number, y: number) {
     offset: vec(),
     angle: 0,
     scale: 1,
-    timer: timer(),
-    delay: timer(),
+    timer1: timer(),
+    timer2: timer(),
+    drops: [],
     health: 0,
     isRigid: false,
     isFlipped: false,
@@ -93,8 +141,7 @@ function destroyEntity(scene: Scene, id: string) {
 
 function createPlayer(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.type = Type.PLAYER;
-  e.state = State.PLAYER_CONTROL;
+  e.state = StateId.PLAYER_CONTROL;
   e.spriteId = "player";
   e.pivot.x = 8;
   e.pivot.y = 15;
@@ -109,8 +156,7 @@ function createPlayer(scene: Scene, x: number, y: number) {
 
 function createTree(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.type = Type.TREE;
-  e.state = State.TREE_IDLE;
+  e.state = StateId.TREE_IDLE;
   e.spriteId = "tree";
   e.pivot.x = 16;
   e.pivot.y = 31;
@@ -120,11 +166,11 @@ function createTree(scene: Scene, x: number, y: number) {
   e.bodyOffset.y = -2;
   e.health = 3;
   e.isInteractable = true;
+  e.drops = [{ item: ItemId.TWIG, chance: 0.5, minAmount: 1, maxAmount: 3 }];
 }
 
 function createRock(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.type = Type.ROCK;
   e.spriteId = "rock";
   e.pivot.x = 8;
   e.pivot.y = 15;
@@ -137,12 +183,23 @@ function createRock(scene: Scene, x: number, y: number) {
 
 function createItemTwig(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.type = Type.ITEM;
-  e.state = State.ITEM_IDLE;
-  e.item = Item.TWIG;
+  e.state = StateId.ITEM_IDLE;
+  e.item = ItemId.TWIG;
   e.spriteId = "item_twig";
   e.pivot.x = 4;
   e.pivot.y = 8;
+}
+
+type Item = {
+  name: string;
+  spriteId: string;
+  count: number;
+};
+
+function loadItem(id: ItemId, name: string, spriteId: string) {
+  const item: Item = { name, spriteId, count: 0 };
+  game.inventory[id] = item;
+  return item;
 }
 
 type Scene = {
@@ -154,7 +211,7 @@ type Scene = {
   interactableId: string;
 };
 
-function createScene(id: string) {
+function loadScene(id: SceneId) {
   const scene: Scene = {
     entities: {},
     active: [],
@@ -167,34 +224,19 @@ function createScene(id: string) {
   return scene;
 }
 
-function createWorldScene() {
-  const scene = createScene("world");
+function loadWorldScene() {
+  const scene = loadScene(SceneId.WORLD);
   createPlayer(scene, 160, 90);
-  repeat(100, () => createTree(scene, getRandomIntInRange(0, WIDTH), getRandomIntInRange(0, HEIGHT)));
+  repeat(100, () => createTree(scene, random(0, WIDTH), random(0, HEIGHT)));
   createRock(scene, 120, 70);
   setCamera(160, 90);
-}
-
-type ItemData = {
-  name: string;
-  spriteId: string;
-  count: number;
-};
-
-function createItem(id: Item, name: string, spriteId: string) {
-  const item: ItemData = {
-    name,
-    spriteId,
-    count: 0,
-  };
-  game.inventory[id] = item;
-  return item;
+  return scene;
 }
 
 type Game = {
   scenes: Record<string, Scene>;
   sceneId: string;
-  inventory: Record<string, ItemData>;
+  inventory: Record<string, Item>;
 };
 
 const game: Game = {
@@ -205,27 +247,28 @@ const game: Game = {
 
 async function setup() {
   await loadTexture("atlas", "textures/atlas.png");
-  createOutlineTextureFromTexture("atlas_outline", "atlas", "circle", "white");
-  createFlashTextureFromTexture("atlas_flash", "atlas", "white");
+  loadSprite("player", "atlas", 0, 0, 16, 16);
+  loadSprite("tree", "atlas", 0, 16, 32, 32);
+  loadSprite("rock", "atlas", 32, 32, 16, 16);
+  loadSprite("item_twig", "atlas", 0, 48, 8, 8);
 
-  createSprite("player", "atlas", 0, 0, 16, 16);
-  createSprite("tree", "atlas", 0, 16, 32, 32);
-  createSprite("tree_outline", "atlas_outline", 0, 16, 32, 32);
-  createSprite("rock", "atlas", 32, 32, 16, 16);
-  createSprite("rock_outline", "atlas_outline", 32, 32, 16, 16);
-  createSprite("item_twig", "atlas", 0, 48, 8, 8);
+  loadOutlineTexture("atlas_outline", "atlas", "circle", "white");
+  loadSprite("tree_outline", "atlas_outline", 0, 16, 32, 32);
+  loadSprite("rock_outline", "atlas_outline", 32, 32, 16, 16);
 
-  createItem(Item.TWIG, "Twig", "item_twig");
+  loadFlashTexture("atlas_flash", "atlas", "white");
 
   await loadFont("default", "fonts/pixelmix.ttf", "pixelmix", 8);
 
-  createWorldScene();
-  game.sceneId = "world";
+  loadItem(ItemId.NONE, "", "");
+  loadItem(ItemId.TWIG, "Twig", "item_twig");
+
+  loadWorldScene();
+
+  game.sceneId = SceneId.WORLD;
 }
 
-function update() {
-  const scene = game.scenes[game.sceneId];
-
+function update(scene: Scene) {
   for (const id of scene.active) {
     const e = scene.entities[id];
     updateState(scene, e);
@@ -236,13 +279,11 @@ function update() {
   const player = scene.entities[scene.playerId];
   updateCamera(player.pos.x, player.pos.y);
   cleanUpEntities(scene);
-  depthSortEntities(scene);
-  render(scene);
 }
 
 function updateState(scene: Scene, e: Entity) {
   switch (e.state) {
-    case State.PLAYER_CONTROL:
+    case StateId.PLAYER_CONTROL:
       {
         resetVector(e.vel);
         if (isInputDown(InputCode.KEY_LEFT)) {
@@ -262,45 +303,47 @@ function updateState(scene: Scene, e: Entity) {
         normalizeVector(e.vel);
         scaleVector(e.vel, PLAYER_SPEED);
         addVectorScaled(e.pos, e.vel, delta);
-        findNearestInteractable(scene, e);
+        updateNearestInteractable(scene, e);
         const interactable = scene.entities[scene.interactableId];
         if (interactable && isInputDown(InputCode.KEY_Z)) {
-          setState(e, State.PLAYER_INTERACT);
+          setState(e, StateId.PLAYER_INTERACT);
         }
       }
       break;
 
-    case State.PLAYER_INTERACT:
+    case StateId.PLAYER_INTERACT:
       {
-        e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer);
-        if (tickTimer(e.timer, PLAYER_INTERACT_TIME)) {
+        const completed = tickTimer(e.timer1, PLAYER_INTERACT_TIME);
+        e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer1);
+        if (completed) {
           const interactable = scene.entities[scene.interactableId];
           interactable.health -= 1;
           if (interactable.health <= 0) {
             destroyEntity(scene, interactable.id);
             dropItems(scene, interactable);
           }
-          setState(e, State.PLAYER_CONTROL);
+          setState(e, StateId.PLAYER_CONTROL);
         }
       }
       break;
 
-    case State.ITEM_IDLE:
+    case StateId.ITEM_IDLE:
       {
-        tickTimer(e.timer, Infinity);
-        e.offset.y = tween(0, -2, 1000, "easeInOutSine", e.timer);
-        if (tickTimer(e.delay, ITEM_SEEK_DELAY)) {
-          setState(e, State.ITEM_SEEK);
+        tickTimer(e.timer1, Infinity);
+        e.offset.y = tween(0, -2, 1000, "easeInOutSine", e.timer1);
+        if (tickTimer(e.timer2, ITEM_SEEK_DELAY)) {
+          setState(e, StateId.ITEM_SEEK);
         }
       }
       break;
 
-    case State.ITEM_SEEK:
+    case StateId.ITEM_SEEK:
       {
         const player = scene.entities[scene.playerId];
-        e.pos.x = tween(e.start.x, player.pos.x, ITEM_SEEK_TIME, "easeInCirc", e.timer);
-        e.pos.y = tween(e.start.y, player.pos.y, ITEM_SEEK_TIME, "easeInCirc", e.timer);
-        if (tickTimer(e.timer, ITEM_SEEK_TIME)) {
+        const completed = tickTimer(e.timer1, ITEM_SEEK_TIME);
+        e.pos.x = tween(e.start.x, player.pos.x, ITEM_SEEK_TIME, "easeInCirc", e.timer1);
+        e.pos.y = tween(e.start.y, player.pos.y, ITEM_SEEK_TIME, "easeInCirc", e.timer1);
+        if (completed) {
           const item = game.inventory[e.item];
           item.count += 1;
           destroyEntity(scene, e.id);
@@ -308,10 +351,10 @@ function updateState(scene: Scene, e: Entity) {
       }
       break;
 
-    case State.TREE_IDLE:
+    case StateId.TREE_IDLE:
       {
-        tickTimer(e.timer, Infinity);
-        e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer);
+        tickTimer(e.timer1, Infinity);
+        e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer1);
       }
       break;
   }
@@ -341,17 +384,24 @@ function checkForCollisions(scene: Scene, e: Entity) {
   }
 }
 
-function dropItems(scene: Scene, e: Entity) {
-  switch (e.type) {
-    case Type.TREE:
-      {
-        repeat(getRandomIntInRange(1, 3), () => createItemTwig(scene, e.pos.x + getRandomIntInRange(-4, 4), e.pos.y + getRandomIntInRange(-4, 4)));
-      }
-      break;
+function dropItem(scene: Scene, e: Entity, item: ItemId) {
+  const x = e.pos.x + random(-4, 4);
+  const y = e.pos.y + random(-4, 4);
+
+  switch (item) {
+    case ItemId.TWIG:
+      return createItemTwig(scene, x, y);
   }
 }
 
-function findNearestInteractable(scene: Scene, player: Entity) {
+function dropItems(scene: Scene, e: Entity) {
+  for (const drop of e.drops) {
+    repeat(drop.minAmount, () => dropItem(scene, e, drop.item));
+    repeat(drop.maxAmount - drop.minAmount, () => roll(drop.chance) && dropItem(scene, e, drop.item));
+  }
+}
+
+function updateNearestInteractable(scene: Scene, player: Entity) {
   scene.interactableId = "";
   let smallestDistance = Infinity;
   for (const id of scene.active) {
@@ -383,15 +433,16 @@ function depthSortEntities(scene: Scene) {
   });
 }
 
-function setState(e: Entity, state: State) {
+function setState(e: Entity, state: StateId) {
   if (e.state !== state) {
     e.state = state;
-    resetTimer(e.timer);
-    resetTimer(e.delay);
+    resetTimer(e.timer1);
+    resetTimer(e.timer2);
   }
 }
 
 function render(scene: Scene) {
+  depthSortEntities(scene);
   renderEntities(scene);
   renderInventory();
   renderMetrics();
@@ -424,10 +475,10 @@ function renderEntities(scene: Scene) {
 }
 
 function renderInventory() {
-  renderInventoryItem(Item.TWIG, 4, 4);
+  renderInventoryItem(ItemId.TWIG, 4, 4);
 }
 
-function renderInventoryItem(id: Item, x: number, y: number) {
+function renderInventoryItem(id: ItemId, x: number, y: number) {
   const item = game.inventory[id];
   resetTransform();
   translateTransform(x, y);
@@ -441,7 +492,7 @@ function renderInventoryItem(id: Item, x: number, y: number) {
 function renderMetrics() {
   resetTransform();
   translateTransform(1, 1);
-  scaleTransform(0.125, 0.125);
+  scaleTransform(0.25, 0.25);
   drawText(fps.toString(), 0, 0, "lime");
 }
 
@@ -453,5 +504,9 @@ run({
     background: "#1e1e1e",
   },
   setup,
-  update,
+  update: () => {
+    const scene = game.scenes[game.sceneId];
+    update(scene);
+    render(scene);
+  },
 });

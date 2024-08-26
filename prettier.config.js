@@ -1,3 +1,3 @@
 export default {
-  printWidth: 999,
+  printWidth: 300,
 };
