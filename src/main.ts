@@ -19,6 +19,7 @@ import {
   loadSprite,
   loadTexture,
   normalizeVector,
+  pick,
   random,
   rect,
   Rectangle,
@@ -51,6 +52,7 @@ const DEBUG = false;
 
 const WIDTH = 320;
 const HEIGHT = 180;
+const TILE_SIZE = 20;
 const PLAYER_SPEED = 1.125;
 const PLAYER_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
@@ -60,7 +62,9 @@ const ITEM_SEEK_DELAY = 500;
 const enum TypeId {
   NONE = "",
   PLAYER = "player",
+  SHRUB = "shrub",
   TREE = "tree",
+  STONES = "stones",
   ROCK = "rock",
   ITEM = "item",
 }
@@ -77,7 +81,9 @@ const enum StateId {
 const enum ItemId {
   NONE = "",
   TWIG = "twig",
+  LOG = "log",
   PEBBLE = "pebble",
+  ROCK = "rock",
 }
 
 const enum SceneId {
@@ -163,12 +169,33 @@ function createPlayer(scene: Scene, x: number, y: number) {
   e.pivot.x = 8;
   e.pivot.y = 15;
   e.body.w = 8;
-  e.body.h = 3;
+  e.body.h = 2;
   e.bodyOffset.x = -4;
-  e.bodyOffset.y = -3;
+  e.bodyOffset.y = -2;
   e.isRigid = true;
   e.health = 1;
   scene.playerId = e.id;
+}
+
+function createShrub(scene: Scene, x: number, y: number) {
+  const e = createEntity(scene, x, y);
+  e.type = TypeId.SHRUB;
+  e.state = StateId.TREE_IDLE;
+  e.spriteId = "shrub";
+  e.pivot.x = 8;
+  e.pivot.y = 15;
+  e.health = 1;
+  e.isInteractable = true;
+}
+
+function createStones(scene: Scene, x: number, y: number) {
+  const e = createEntity(scene, x, y);
+  e.type = TypeId.STONES;
+  e.spriteId = "stones";
+  e.pivot.x = 8;
+  e.pivot.y = 15;
+  e.health = 1;
+  e.isInteractable = true;
 }
 
 function createTree(scene: Scene, x: number, y: number) {
@@ -218,8 +245,16 @@ function createItemTwig(scene: Scene, x: number, y: number) {
   return createItem(scene, x, y, ItemId.TWIG, "item_twig");
 }
 
+function createItemLog(scene: Scene, x: number, y: number) {
+  return createItem(scene, x, y, ItemId.LOG, "item_log");
+}
+
 function createItemPebble(scene: Scene, x: number, y: number) {
   return createItem(scene, x, y, ItemId.PEBBLE, "item_pebble");
+}
+
+function createItemRock(scene: Scene, x: number, y: number) {
+  return createItem(scene, x, y, ItemId.ROCK, "item_rock");
 }
 
 type Item = {
@@ -256,17 +291,30 @@ function createScene(id: SceneId) {
 
 function loadWorldScene() {
   const scene = createScene(SceneId.WORLD);
+  const objects = [TypeId.SHRUB, TypeId.TREE, TypeId.STONES, TypeId.ROCK];
+
   createPlayer(scene, 160, 90);
-  repeat(100, () => {
-    const x = random(0, WIDTH);
-    const y = random(0, HEIGHT);
-    if (roll(0.5)) {
-      createTree(scene, x, y);
-    } else {
-      createRock(scene, x, y);
-    }
-  });
   setCameraPosition(160, 90);
+
+  for (let x = 0; x < WIDTH; x += TILE_SIZE) {
+    for (let y = 0; y < HEIGHT; y += TILE_SIZE) {
+      const type = pick(objects);
+      switch (type) {
+        case TypeId.SHRUB:
+          createShrub(scene, x, y);
+          break;
+        case TypeId.TREE:
+          createTree(scene, x, y);
+          break;
+        case TypeId.STONES:
+          createStones(scene, x, y);
+          break;
+        case TypeId.ROCK:
+          createRock(scene, x, y);
+          break;
+      }
+    }
+  }
 }
 
 type Game = {
@@ -288,12 +336,18 @@ async function setup() {
   loadSprite("player", "atlas", 0, 0, 16, 16);
   loadSprite("tree", "atlas", 0, 16, 32, 32);
   loadSprite("rock", "atlas", 32, 32, 16, 16);
+  loadSprite("shrub", "atlas", 48, 32, 16, 16);
+  loadSprite("stones", "atlas", 64, 32, 16, 16);
   loadSprite("item_twig", "atlas", 0, 48, 8, 8);
+  loadSprite("item_log", "atlas", 16, 48, 8, 8);
   loadSprite("item_pebble", "atlas", 32, 48, 8, 8);
+  loadSprite("item_rock", "atlas", 48, 48, 8, 8);
 
   loadOutlineTexture("atlas_outline", "atlas", "circle", "white");
   loadSprite("tree_outline", "atlas_outline", 0, 16, 32, 32);
   loadSprite("rock_outline", "atlas_outline", 32, 32, 16, 16);
+  loadSprite("shrub_outline", "atlas_outline", 48, 32, 16, 16);
+  loadSprite("stones_outline", "atlas_outline", 64, 32, 16, 16);
 
   loadFlashTexture("atlas_flash", "atlas", "white");
 
@@ -303,6 +357,8 @@ async function setup() {
   loadItem(ItemId.NONE, "", "");
   loadItem(ItemId.TWIG, "Twig", "item_twig");
   loadItem(ItemId.PEBBLE, "Pebble", "item_pebble");
+  loadItem(ItemId.LOG, "Log", "item_log");
+  loadItem(ItemId.ROCK, "Rock", "item_rock");
 
   loadWorldScene();
 
@@ -368,14 +424,17 @@ function updateState(scene: Scene, e: Entity) {
     case StateId.PLAYER_INTERACT:
       {
         const completed = tickTimer(e.timer1, PLAYER_INTERACT_TIME);
+        const trigger = tickTimer(e.timer2, PLAYER_INTERACT_TIME / 2);
         e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer1);
-        if (completed) {
+        if (trigger) {
           const interactable = scene.entities[scene.interactableId];
           interactable.health -= 1;
           if (interactable.health <= 0) {
             destroyEntity(scene, interactable.id);
             dropItems(scene, interactable);
           }
+        }
+        if (completed) {
           setState(e, StateId.PLAYER_CONTROL);
         }
       }
@@ -457,16 +516,28 @@ function dropItem(scene: Scene, e: Entity, item: ItemId) {
     case ItemId.PEBBLE:
       createItemPebble(scene, x, y);
       break;
+    case ItemId.LOG:
+      createItemLog(scene, x, y);
+      break;
+    case ItemId.ROCK:
+      createItemRock(scene, x, y);
+      break;
   }
 }
 
 function dropItems(scene: Scene, e: Entity) {
   switch (e.type) {
-    case TypeId.TREE:
+    case TypeId.SHRUB:
       repeat(random(1, 2), () => dropItem(scene, e, ItemId.TWIG));
       break;
-    case TypeId.ROCK:
+    case TypeId.STONES:
       repeat(random(1, 2), () => dropItem(scene, e, ItemId.PEBBLE));
+      break;
+    case TypeId.TREE:
+      repeat(random(1, 2), () => dropItem(scene, e, ItemId.LOG));
+      break;
+    case TypeId.ROCK:
+      repeat(random(1, 2), () => dropItem(scene, e, ItemId.ROCK));
       break;
   }
 }
@@ -540,7 +611,9 @@ function renderEntity(e: Entity) {
 
 function renderInventory() {
   renderInventoryItem(ItemId.TWIG, 4, 4);
-  renderInventoryItem(ItemId.PEBBLE, 14, 4);
+  renderInventoryItem(ItemId.LOG, 14, 4);
+  renderInventoryItem(ItemId.PEBBLE, 24, 4);
+  renderInventoryItem(ItemId.ROCK, 34, 4);
 }
 
 function renderInventoryItem(id: ItemId, x: number, y: number) {
