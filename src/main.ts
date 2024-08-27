@@ -28,7 +28,6 @@ import {
   resetTimer,
   resetTransform,
   resetVector,
-  roll,
   rotateTransform,
   run,
   scaleTransform,
@@ -75,6 +74,7 @@ const enum StateId {
   PLAYER_INTERACT = "player_interact",
   ITEM_IDLE = "item_idle",
   ITEM_SEEK = "item_seek",
+  SHRUB_IDLE = "shrub_idle",
   TREE_IDLE = "tree_idle",
 }
 
@@ -187,7 +187,7 @@ function createPlayer(scene: Scene, x: number, y: number) {
 function createShrub(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
   e.type = TypeId.SHRUB;
-  e.state = StateId.TREE_IDLE;
+  e.state = StateId.SHRUB_IDLE;
   e.spriteId = "shrub";
   e.pivot.x = 8;
   e.pivot.y = 15;
@@ -508,6 +508,13 @@ function updateState(scene: Scene, e: Entity) {
           item.count = Math.min(item.count + 1, item.max);
           destroyEntity(scene, e.id);
         }
+      }
+      break;
+
+    case StateId.SHRUB_IDLE:
+      {
+        tickTimer(e.timer1, Infinity);
+        e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer1);
       }
       break;
 
