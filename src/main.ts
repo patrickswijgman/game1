@@ -86,6 +86,11 @@ const enum ItemId {
   ROCK = "rock",
 }
 
+const enum ToolId {
+  NONE = "",
+  AXE = "axe",
+}
+
 const enum SceneId {
   WORLD = "world",
 }
@@ -99,6 +104,7 @@ type Entity = {
   type: TypeId;
   state: StateId;
   item: ItemId;
+  tool: ToolId;
   pos: Vector;
   vel: Vector;
   start: Vector;
@@ -129,6 +135,7 @@ function createEntity(scene: Scene, x: number, y: number) {
     type: TypeId.NONE,
     state: StateId.NONE,
     item: ItemId.NONE,
+    tool: ToolId.NONE,
     pos: vec(x, y),
     vel: vec(),
     start: vec(x, y),
@@ -269,6 +276,17 @@ function loadItem(id: ItemId, name: string, spriteId: string) {
   game.inventory[id] = item;
 }
 
+type Tool = {
+  name: string;
+  spriteId: string;
+  isUnlocked: boolean;
+};
+
+function loadTool(id: ToolId, name: string, spriteId: string) {
+  const tool: Tool = { name, spriteId, isUnlocked: false };
+  game.tools[id] = tool;
+}
+
 type Scene = {
   entities: Record<string, Entity>;
   active: string[];
@@ -321,6 +339,7 @@ type Game = {
   scenes: Record<string, Scene>;
   sceneId: string;
   inventory: Record<string, Item>;
+  tools: Record<string, Tool>;
   state: GameStateId;
 };
 
@@ -328,40 +347,66 @@ const game: Game = {
   scenes: {},
   sceneId: "",
   inventory: {},
+  tools: {},
   state: GameStateId.NONE,
 };
 
 async function setup() {
+  await setupTextures();
+  await setupFont();
+  setupSprites();
+  setupItems();
+  setupTools();
+  setupScenes();
+}
+
+async function setupTextures() {
   await loadTexture("atlas", "textures/atlas.png");
+  loadOutlineTexture("atlas_outline", "atlas", "circle", "white");
+  loadFlashTexture("atlas_flash", "atlas", "white");
+}
+
+async function setupFont() {
+  await loadFont("default", "fonts/pixelmix.ttf", "pixelmix", 8);
+  setFont("default");
+}
+
+function setupSprites() {
   loadSprite("player", "atlas", 0, 0, 16, 16);
+
   loadSprite("tree", "atlas", 0, 16, 32, 32);
+  loadSprite("tree_outline", "atlas_outline", 0, 16, 32, 32);
+
   loadSprite("rock", "atlas", 32, 32, 16, 16);
+  loadSprite("rock_outline", "atlas_outline", 32, 32, 16, 16);
+
   loadSprite("shrub", "atlas", 48, 32, 16, 16);
+  loadSprite("shrub_outline", "atlas_outline", 48, 32, 16, 16);
+
   loadSprite("stones", "atlas", 64, 32, 16, 16);
+  loadSprite("stones_outline", "atlas_outline", 64, 32, 16, 16);
+
   loadSprite("item_twig", "atlas", 0, 48, 8, 8);
   loadSprite("item_log", "atlas", 16, 48, 8, 8);
   loadSprite("item_pebble", "atlas", 32, 48, 8, 8);
   loadSprite("item_rock", "atlas", 48, 48, 8, 8);
 
-  loadOutlineTexture("atlas_outline", "atlas", "circle", "white");
-  loadSprite("tree_outline", "atlas_outline", 0, 16, 32, 32);
-  loadSprite("rock_outline", "atlas_outline", 32, 32, 16, 16);
-  loadSprite("shrub_outline", "atlas_outline", 48, 32, 16, 16);
-  loadSprite("stones_outline", "atlas_outline", 64, 32, 16, 16);
+  loadSprite("tool_axe", "atlas", 0, 64, 8, 8);
+}
 
-  loadFlashTexture("atlas_flash", "atlas", "white");
-
-  await loadFont("default", "fonts/pixelmix.ttf", "pixelmix", 8);
-  setFont("default");
-
-  loadItem(ItemId.NONE, "", "");
+function setupItems() {
   loadItem(ItemId.TWIG, "Twig", "item_twig");
   loadItem(ItemId.PEBBLE, "Pebble", "item_pebble");
   loadItem(ItemId.LOG, "Log", "item_log");
   loadItem(ItemId.ROCK, "Rock", "item_rock");
+}
 
+function setupTools() {
+  loadTool(ToolId.AXE, "Axe", "tool_axe");
+}
+
+function setupScenes() {
   loadWorldScene();
-
   game.sceneId = SceneId.WORLD;
 }
 
@@ -387,6 +432,7 @@ function update() {
   }
 
   renderInventory();
+  renderToolBelt();
   renderMetrics();
 }
 
@@ -506,6 +552,23 @@ function checkForCollisions(scene: Scene, e: Entity) {
   }
 }
 
+function dropItems(scene: Scene, e: Entity) {
+  switch (e.type) {
+    case TypeId.SHRUB:
+      repeat(random(1, 2), () => dropItem(scene, e, ItemId.TWIG));
+      break;
+    case TypeId.STONES:
+      repeat(random(1, 2), () => dropItem(scene, e, ItemId.PEBBLE));
+      break;
+    case TypeId.TREE:
+      repeat(random(1, 2), () => dropItem(scene, e, ItemId.LOG));
+      break;
+    case TypeId.ROCK:
+      repeat(random(1, 2), () => dropItem(scene, e, ItemId.ROCK));
+      break;
+  }
+}
+
 function dropItem(scene: Scene, e: Entity, item: ItemId) {
   const x = e.pos.x + random(-4, 4);
   const y = e.pos.y + random(-4, 4);
@@ -521,23 +584,6 @@ function dropItem(scene: Scene, e: Entity, item: ItemId) {
       break;
     case ItemId.ROCK:
       createItemRock(scene, x, y);
-      break;
-  }
-}
-
-function dropItems(scene: Scene, e: Entity) {
-  switch (e.type) {
-    case TypeId.SHRUB:
-      repeat(random(1, 2), () => dropItem(scene, e, ItemId.TWIG));
-      break;
-    case TypeId.STONES:
-      repeat(random(1, 2), () => dropItem(scene, e, ItemId.PEBBLE));
-      break;
-    case TypeId.TREE:
-      repeat(random(1, 2), () => dropItem(scene, e, ItemId.LOG));
-      break;
-    case TypeId.ROCK:
-      repeat(random(1, 2), () => dropItem(scene, e, ItemId.ROCK));
       break;
   }
 }
@@ -625,6 +671,20 @@ function renderInventoryItem(id: ItemId, x: number, y: number) {
   translateTransform(10, 5);
   scaleTransform(0.5, 0.5);
   drawText(item.count.toString(), 0, 0, "white", "right");
+}
+
+function renderToolBelt() {
+  renderTool(ToolId.AXE, 4, 14);
+}
+
+function renderTool(id: ToolId, x: number, y: number) {
+  const tool = game.tools[id];
+  resetTransform();
+  translateTransform(x, y);
+  drawRect(0, 0, 10, 10, tool.isUnlocked ? "rgba(0,0,0,0.5)" : "rgba(255, 0, 0, 0.5)", true);
+  drawSprite(tool.spriteId, 0, 0);
+  translateTransform(10, 5);
+  scaleTransform(0.5, 0.5);
 }
 
 function renderMetrics() {
