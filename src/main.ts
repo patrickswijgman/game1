@@ -46,6 +46,7 @@ import {
 } from "ridder";
 
 const DEBUG = false;
+
 const WIDTH = 320;
 const HEIGHT = 180;
 const PLAYER_SPEED = 1.125;
@@ -53,6 +54,14 @@ const PLAYER_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
 const ITEM_SEEK_TIME = 200;
 const ITEM_SEEK_DELAY = 500;
+
+const enum TypeId {
+  NONE = "",
+  PLAYER = "player",
+  TREE = "tree",
+  ROCK = "rock",
+  ITEM = "item",
+}
 
 const enum StateId {
   NONE = "",
@@ -72,15 +81,9 @@ const enum SceneId {
   WORLD = "world",
 }
 
-type Drop = {
-  item: ItemId;
-  chance: number;
-  minAmount: number;
-  maxAmount: number;
-};
-
 type Entity = {
   id: string;
+  type: TypeId;
   state: StateId;
   item: ItemId;
   pos: Vector;
@@ -96,7 +99,6 @@ type Entity = {
   scale: number;
   timer1: Timer;
   timer2: Timer;
-  drops: Drop[];
   health: number;
   isRigid: boolean;
   isFlipped: boolean;
@@ -107,6 +109,7 @@ type Entity = {
 function createEntity(scene: Scene, x: number, y: number) {
   const e: Entity = {
     id: uuid(),
+    type: TypeId.NONE,
     state: StateId.NONE,
     item: ItemId.NONE,
     pos: vec(x, y),
@@ -122,7 +125,6 @@ function createEntity(scene: Scene, x: number, y: number) {
     scale: 1,
     timer1: timer(),
     timer2: timer(),
-    drops: [],
     health: 0,
     isRigid: false,
     isFlipped: false,
@@ -141,6 +143,7 @@ function destroyEntity(scene: Scene, id: string) {
 
 function createPlayer(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
+  e.type = TypeId.PLAYER;
   e.state = StateId.PLAYER_CONTROL;
   e.spriteId = "player";
   e.pivot.x = 8;
@@ -156,6 +159,7 @@ function createPlayer(scene: Scene, x: number, y: number) {
 
 function createTree(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
+  e.type = TypeId.TREE;
   e.state = StateId.TREE_IDLE;
   e.spriteId = "tree";
   e.pivot.x = 16;
@@ -166,11 +170,11 @@ function createTree(scene: Scene, x: number, y: number) {
   e.bodyOffset.y = -2;
   e.health = 3;
   e.isInteractable = true;
-  e.drops = [{ item: ItemId.TWIG, chance: 0.5, minAmount: 1, maxAmount: 3 }];
 }
 
 function createRock(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
+  e.type = TypeId.ROCK;
   e.spriteId = "rock";
   e.pivot.x = 8;
   e.pivot.y = 15;
@@ -181,25 +185,30 @@ function createRock(scene: Scene, x: number, y: number) {
   e.isInteractable = true;
 }
 
-function createItemTwig(scene: Scene, x: number, y: number) {
+function createItem(scene: Scene, x: number, y: number, item: ItemId, spriteId: string) {
   const e = createEntity(scene, x, y);
+  e.type = TypeId.ITEM;
   e.state = StateId.ITEM_IDLE;
-  e.item = ItemId.TWIG;
-  e.spriteId = "item_twig";
+  e.item = item;
+  e.spriteId = spriteId;
   e.pivot.x = 4;
   e.pivot.y = 8;
+}
+
+function createItemTwig(scene: Scene, x: number, y: number) {
+  return createItem(scene, x, y, ItemId.TWIG, "item_twig");
 }
 
 type Item = {
   name: string;
   spriteId: string;
   count: number;
+  max: number;
 };
 
 function loadItem(id: ItemId, name: string, spriteId: string) {
-  const item: Item = { name, spriteId, count: 0 };
+  const item: Item = { name, spriteId, count: 0, max: 99 };
   game.inventory[id] = item;
-  return item;
 }
 
 type Scene = {
@@ -211,7 +220,7 @@ type Scene = {
   interactableId: string;
 };
 
-function loadScene(id: SceneId) {
+function createScene(id: SceneId) {
   const scene: Scene = {
     entities: {},
     active: [],
@@ -225,12 +234,11 @@ function loadScene(id: SceneId) {
 }
 
 function loadWorldScene() {
-  const scene = loadScene(SceneId.WORLD);
+  const scene = createScene(SceneId.WORLD);
   createPlayer(scene, 160, 90);
   repeat(100, () => createTree(scene, random(0, WIDTH), random(0, HEIGHT)));
   createRock(scene, 120, 70);
   setCamera(160, 90);
-  return scene;
 }
 
 type Game = {
@@ -345,7 +353,7 @@ function updateState(scene: Scene, e: Entity) {
         e.pos.y = tween(e.start.y, player.pos.y, ITEM_SEEK_TIME, "easeInCirc", e.timer1);
         if (completed) {
           const item = game.inventory[e.item];
-          item.count += 1;
+          item.count = Math.min(item.count + 1, item.max);
           destroyEntity(scene, e.id);
         }
       }
@@ -395,9 +403,10 @@ function dropItem(scene: Scene, e: Entity, item: ItemId) {
 }
 
 function dropItems(scene: Scene, e: Entity) {
-  for (const drop of e.drops) {
-    repeat(drop.minAmount, () => dropItem(scene, e, drop.item));
-    repeat(drop.maxAmount - drop.minAmount, () => roll(drop.chance) && dropItem(scene, e, drop.item));
+  switch (e.type) {
+    case TypeId.TREE:
+      repeat(random(1, 2), () => dropItem(scene, e, ItemId.TWIG));
+      break;
   }
 }
 
