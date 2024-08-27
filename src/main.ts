@@ -53,7 +53,7 @@ const DEBUG = false;
 const WIDTH = 320;
 const HEIGHT = 180;
 const TILE_SIZE = 20;
-const PLAYER_SPEED = 1.125;
+const PLAYER_SPEED = 1;
 const PLAYER_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
 const ITEM_SEEK_TIME = 200;
@@ -175,9 +175,9 @@ function createPlayer(scene: Scene, x: number, y: number) {
   e.spriteId = "player";
   e.pivot.x = 8;
   e.pivot.y = 15;
-  e.body.w = 8;
+  e.body.w = 6;
   e.body.h = 2;
-  e.bodyOffset.x = -4;
+  e.bodyOffset.x = -3;
   e.bodyOffset.y = -2;
   e.isRigid = true;
   e.health = 1;
@@ -209,6 +209,7 @@ function createTree(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
   e.type = TypeId.TREE;
   e.state = StateId.TREE_IDLE;
+  e.tool = ToolId.AXE;
   e.spriteId = "tree";
   e.pivot.x = 16;
   e.pivot.y = 31;
@@ -595,6 +596,9 @@ function updateNearestInteractable(scene: Scene, player: Entity) {
     const target = scene.entities[id];
     const distance = getVectorDistance(player.pos, target.pos);
     if (target.isInteractable && distance < PLAYER_RANGE && distance < smallestDistance) {
+      if (target.tool && !game.tools[target.tool].isUnlocked) {
+        continue;
+      }
       scene.interactableId = id;
       smallestDistance = distance;
     }
@@ -683,8 +687,6 @@ function renderTool(id: ToolId, x: number, y: number) {
   translateTransform(x, y);
   drawRect(0, 0, 10, 10, tool.isUnlocked ? "rgba(0,0,0,0.5)" : "rgba(255, 0, 0, 0.5)", true);
   drawSprite(tool.spriteId, 0, 0);
-  translateTransform(10, 5);
-  scaleTransform(0.5, 0.5);
 }
 
 function renderMetrics() {
