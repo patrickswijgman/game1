@@ -3,12 +3,12 @@ import {
   addVectorScaled,
   applyCameraTransform,
   copyVector,
-  delta,
+  doesRectangleContain,
   drawRect,
   drawRectInstance,
   drawSprite,
   drawText,
-  fps,
+  getEngineState,
   getVectorDistance,
   InputCode,
   isInputDown,
@@ -32,7 +32,9 @@ import {
   run,
   scaleTransform,
   scaleVector,
-  setCamera,
+  setAlpha,
+  setCameraPosition,
+  setFont,
   tickTimer,
   timer,
   Timer,
@@ -89,6 +91,8 @@ type Entity = {
   pos: Vector;
   vel: Vector;
   start: Vector;
+  hitbox: Rectangle;
+  hitboxOffset: Vector;
   body: Rectangle;
   bodyOffset: Vector;
   intersection: Vector;
@@ -97,10 +101,12 @@ type Entity = {
   offset: Vector;
   angle: number;
   scale: number;
+  alpha: number;
   timer1: Timer;
   timer2: Timer;
   health: number;
   isRigid: boolean;
+  isVisible: boolean;
   isFlipped: boolean;
   isInteractable: boolean;
   isOutlineVisible: boolean;
@@ -115,6 +121,8 @@ function createEntity(scene: Scene, x: number, y: number) {
     pos: vec(x, y),
     vel: vec(),
     start: vec(x, y),
+    hitbox: rect(),
+    hitboxOffset: vec(),
     body: rect(),
     bodyOffset: vec(),
     intersection: vec(),
@@ -123,17 +131,18 @@ function createEntity(scene: Scene, x: number, y: number) {
     offset: vec(),
     angle: 0,
     scale: 1,
+    alpha: 1,
     timer1: timer(),
     timer2: timer(),
     health: 0,
     isRigid: false,
+    isVisible: true,
     isFlipped: false,
     isInteractable: false,
     isOutlineVisible: false,
   };
   scene.entities[e.id] = e;
   scene.active.push(e.id);
-  scene.visible.push(e.id);
   return e;
 }
 
@@ -168,6 +177,10 @@ function createTree(scene: Scene, x: number, y: number) {
   e.body.h = 2;
   e.bodyOffset.x = -1;
   e.bodyOffset.y = -2;
+  e.hitbox.w = 13;
+  e.hitbox.h = 25;
+  e.hitboxOffset.x = -6.5;
+  e.hitboxOffset.y = -25;
   e.health = 3;
   e.isInteractable = true;
 }
@@ -214,7 +227,6 @@ function loadItem(id: ItemId, name: string, spriteId: string) {
 type Scene = {
   entities: Record<string, Entity>;
   active: string[];
-  visible: string[];
   destroyed: string[];
   playerId: string;
   interactableId: string;
@@ -224,7 +236,6 @@ function createScene(id: SceneId) {
   const scene: Scene = {
     entities: {},
     active: [],
-    visible: [],
     destroyed: [],
     playerId: "",
     interactableId: "",
@@ -238,7 +249,7 @@ function loadWorldScene() {
   createPlayer(scene, 160, 90);
   repeat(100, () => createTree(scene, random(0, WIDTH), random(0, HEIGHT)));
   createRock(scene, 120, 70);
-  setCamera(160, 90);
+  setCameraPosition(160, 90);
 }
 
 type Game = {
@@ -267,6 +278,7 @@ async function setup() {
   loadFlashTexture("atlas_flash", "atlas", "white");
 
   await loadFont("default", "fonts/pixelmix.ttf", "pixelmix", 8);
+  setFont("default");
 
   loadItem(ItemId.NONE, "", "");
   loadItem(ItemId.TWIG, "Twig", "item_twig");
@@ -276,10 +288,13 @@ async function setup() {
   game.sceneId = SceneId.WORLD;
 }
 
-function update(scene: Scene) {
+function update() {
+  const scene = game.scenes[game.sceneId];
+
   for (const id of scene.active) {
     const e = scene.entities[id];
     updateState(scene, e);
+    updateHitbox(e);
     checkForCollisions(scene, e);
     e.isOutlineVisible = id === scene.interactableId;
   }
@@ -287,9 +302,19 @@ function update(scene: Scene) {
   const player = scene.entities[scene.playerId];
   updateCamera(player.pos.x, player.pos.y);
   cleanUpEntities(scene);
+  depthSortEntities(scene, scene.active);
+
+  for (const id of scene.active) {
+    const e = scene.entities[id];
+    renderEntity(e);
+  }
+
+  renderInventory();
+  renderMetrics();
 }
 
 function updateState(scene: Scene, e: Entity) {
+  const { delta } = getEngineState();
   switch (e.state) {
     case StateId.PLAYER_CONTROL:
       {
@@ -363,8 +388,17 @@ function updateState(scene: Scene, e: Entity) {
       {
         tickTimer(e.timer1, Infinity);
         e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer1);
+        const player = scene.entities[scene.playerId];
+        e.alpha = doesRectangleContain(e.hitbox, player.pos.x, player.pos.y) ? 0.5 : 1;
       }
       break;
+  }
+}
+
+function updateHitbox(e: Entity) {
+  if (isRectangleValid(e.hitbox)) {
+    copyVector(e.hitbox, e.pos);
+    addVector(e.hitbox, e.hitboxOffset);
   }
 }
 
@@ -428,14 +462,13 @@ function cleanUpEntities(scene: Scene) {
     for (const id of scene.destroyed) {
       delete scene.entities[id];
       remove(scene.active, id);
-      remove(scene.visible, id);
     }
     scene.destroyed.length = 0;
   }
 }
 
-function depthSortEntities(scene: Scene) {
-  scene.visible.sort((idA, idB) => {
+function depthSortEntities(scene: Scene, list: Array<string>) {
+  list.sort((idA, idB) => {
     const a = scene.entities[idA];
     const b = scene.entities[idB];
     return a.pos.y - b.pos.y;
@@ -450,16 +483,8 @@ function setState(e: Entity, state: StateId) {
   }
 }
 
-function render(scene: Scene) {
-  depthSortEntities(scene);
-  renderEntities(scene);
-  renderInventory();
-  renderMetrics();
-}
-
-function renderEntities(scene: Scene) {
-  for (const id of scene.visible) {
-    const e = scene.entities[id];
+function renderEntity(e: Entity) {
+  if (e.isVisible) {
     resetTransform();
     applyCameraTransform();
     translateTransform(e.pos.x, e.pos.y);
@@ -470,7 +495,9 @@ function renderEntities(scene: Scene) {
       scaleTransform(-1, 1);
     }
     if (e.spriteId) {
+      setAlpha(e.alpha);
       drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
+      setAlpha(1);
     }
     if (e.isOutlineVisible) {
       drawSprite(`${e.spriteId}_outline`, -e.pivot.x, -e.pivot.y);
@@ -479,6 +506,7 @@ function renderEntities(scene: Scene) {
       resetTransform();
       applyCameraTransform();
       drawRectInstance(e.body, "red");
+      drawRectInstance(e.hitbox, "yellow");
     }
   }
 }
@@ -499,6 +527,7 @@ function renderInventoryItem(id: ItemId, x: number, y: number) {
 }
 
 function renderMetrics() {
+  const { fps } = getEngineState();
   resetTransform();
   translateTransform(1, 1);
   scaleTransform(0.25, 0.25);
@@ -513,9 +542,5 @@ run({
     background: "#1e1e1e",
   },
   setup,
-  update: () => {
-    const scene = game.scenes[game.sceneId];
-    update(scene);
-    render(scene);
-  },
+  update,
 });
