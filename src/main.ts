@@ -77,10 +77,15 @@ const enum StateId {
 const enum ItemId {
   NONE = "",
   TWIG = "twig",
+  PEBBLE = "pebble",
 }
 
 const enum SceneId {
   WORLD = "world",
+}
+
+const enum GameStateId {
+  NONE = "",
 }
 
 type Entity = {
@@ -195,6 +200,7 @@ function createRock(scene: Scene, x: number, y: number) {
   e.body.h = 3;
   e.bodyOffset.x = -5;
   e.bodyOffset.y = -3;
+  e.health = 5;
   e.isInteractable = true;
 }
 
@@ -210,6 +216,10 @@ function createItem(scene: Scene, x: number, y: number, item: ItemId, spriteId: 
 
 function createItemTwig(scene: Scene, x: number, y: number) {
   return createItem(scene, x, y, ItemId.TWIG, "item_twig");
+}
+
+function createItemPebble(scene: Scene, x: number, y: number) {
+  return createItem(scene, x, y, ItemId.PEBBLE, "item_pebble");
 }
 
 type Item = {
@@ -247,8 +257,15 @@ function createScene(id: SceneId) {
 function loadWorldScene() {
   const scene = createScene(SceneId.WORLD);
   createPlayer(scene, 160, 90);
-  repeat(100, () => createTree(scene, random(0, WIDTH), random(0, HEIGHT)));
-  createRock(scene, 120, 70);
+  repeat(100, () => {
+    const x = random(0, WIDTH);
+    const y = random(0, HEIGHT);
+    if (roll(0.5)) {
+      createTree(scene, x, y);
+    } else {
+      createRock(scene, x, y);
+    }
+  });
   setCameraPosition(160, 90);
 }
 
@@ -256,12 +273,14 @@ type Game = {
   scenes: Record<string, Scene>;
   sceneId: string;
   inventory: Record<string, Item>;
+  state: GameStateId;
 };
 
 const game: Game = {
   scenes: {},
   sceneId: "",
   inventory: {},
+  state: GameStateId.NONE,
 };
 
 async function setup() {
@@ -270,6 +289,7 @@ async function setup() {
   loadSprite("tree", "atlas", 0, 16, 32, 32);
   loadSprite("rock", "atlas", 32, 32, 16, 16);
   loadSprite("item_twig", "atlas", 0, 48, 8, 8);
+  loadSprite("item_pebble", "atlas", 32, 48, 8, 8);
 
   loadOutlineTexture("atlas_outline", "atlas", "circle", "white");
   loadSprite("tree_outline", "atlas_outline", 0, 16, 32, 32);
@@ -282,6 +302,7 @@ async function setup() {
 
   loadItem(ItemId.NONE, "", "");
   loadItem(ItemId.TWIG, "Twig", "item_twig");
+  loadItem(ItemId.PEBBLE, "Pebble", "item_pebble");
 
   loadWorldScene();
 
@@ -433,6 +454,9 @@ function dropItem(scene: Scene, e: Entity, item: ItemId) {
     case ItemId.TWIG:
       createItemTwig(scene, x, y);
       break;
+    case ItemId.PEBBLE:
+      createItemPebble(scene, x, y);
+      break;
   }
 }
 
@@ -440,6 +464,9 @@ function dropItems(scene: Scene, e: Entity) {
   switch (e.type) {
     case TypeId.TREE:
       repeat(random(1, 2), () => dropItem(scene, e, ItemId.TWIG));
+      break;
+    case TypeId.ROCK:
+      repeat(random(1, 2), () => dropItem(scene, e, ItemId.PEBBLE));
       break;
   }
 }
@@ -513,6 +540,7 @@ function renderEntity(e: Entity) {
 
 function renderInventory() {
   renderInventoryItem(ItemId.TWIG, 4, 4);
+  renderInventoryItem(ItemId.PEBBLE, 14, 4);
 }
 
 function renderInventoryItem(id: ItemId, x: number, y: number) {
