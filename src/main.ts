@@ -54,7 +54,7 @@ const PLAYER_INTERACT_TIME = 200;
 const ITEM_SEEK_TIME = 200;
 const ITEM_SEEK_DELAY = 500;
 
-enum StateId {
+const enum StateId {
   NONE = "",
   PLAYER_CONTROL = "player_control",
   PLAYER_INTERACT = "player_interact",
@@ -63,12 +63,12 @@ enum StateId {
   TREE_IDLE = "tree_idle",
 }
 
-enum ItemId {
+const enum ItemId {
   NONE = "",
   TWIG = "twig",
 }
 
-enum SceneId {
+const enum SceneId {
   WORLD = "world",
 }
 
@@ -387,10 +387,10 @@ function checkForCollisions(scene: Scene, e: Entity) {
 function dropItem(scene: Scene, e: Entity, item: ItemId) {
   const x = e.pos.x + random(-4, 4);
   const y = e.pos.y + random(-4, 4);
-
   switch (item) {
     case ItemId.TWIG:
-      return createItemTwig(scene, x, y);
+      createItemTwig(scene, x, y);
+      break;
   }
 }
 
