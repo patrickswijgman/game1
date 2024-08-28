@@ -472,7 +472,7 @@ function update() {
 
   switch (game.state) {
     case GameStateId.CRAFTING:
-      renderCrafting(scene);
+      renderCraftingMenu(scene);
       break;
   }
 
@@ -721,33 +721,33 @@ function renderEntity(e: Entity) {
   }
 }
 
-function renderCrafting(scene: Scene) {
-  renderCraftingChoice(scene, BlueprintId.CRAFTING_TABLE, 4, HEIGHT - 40);
+function renderCraftingMenu(scene: Scene) {
+  renderCraftingMenuItem(scene, BlueprintId.CRAFTING_TABLE, 4, HEIGHT - 40);
 }
 
-function renderCraftingChoice(scene: Scene, id: BlueprintId, x: number, y: number) {
+function renderCraftingMenuItem(scene: Scene, id: BlueprintId, x: number, y: number) {
   const blueprint = game.blueprints[id];
   const isSelected = id === scene.selectedId;
+  const isCraftable = blueprint.recipe.every((recipe) => game.inventory[recipe.item].count >= recipe.amount);
   resetTransform();
   translateTransform(x, y);
-  drawRect(0, 0, 16, 16, blueprint.isUnlocked ? "rgba(0,0,0,0.5)" : "rgba(255, 0, 0, 0.5)", true);
+  drawRect(0, 0, 16, 16, blueprint.isUnlocked && isCraftable ? "black" : "red", true);
   if (isSelected) {
-    drawRect(0, 0, 16, 16, "white");
+    drawRect(0, 0, 16, 16);
   }
   translateTransform(8, 15);
   if (isSelected) {
     scaleTransform(1.25, 1.25);
   }
   drawSprite(blueprint.spriteId, -8, -15);
-  renderRecipe(blueprint, x, y, isSelected);
+  renderRecipe(blueprint, x, y, isSelected, isCraftable);
 }
 
-function renderRecipe(blueprint: Blueprint, anchorX: number, anchorY: number, isSelected: boolean) {
+function renderRecipe(blueprint: Blueprint, anchorX: number, anchorY: number, isSelected: boolean, isCraftable: boolean) {
   const w = 100;
   const h = 10 * blueprint.recipe.length + 16 + 4;
   const x = anchorX;
   const y = anchorY - h;
-  const isCraftable = blueprint.recipe.every((recipe) => game.inventory[recipe.item].count >= recipe.amount);
   let message = "Craftable";
   let isError = false;
   if (!isCraftable) {
@@ -760,7 +760,7 @@ function renderRecipe(blueprint: Blueprint, anchorX: number, anchorY: number, is
   }
   resetTransform();
   translateTransform(x, y);
-  drawRect(0, 0, w, h, "rgba(0,0,0,0.5)", true);
+  drawRect(0, 0, w, h, "black", true);
   drawRect(0, 0, w, h);
   drawText(blueprint.name, 2, 3);
   translateTransform(0, 8);
@@ -769,8 +769,8 @@ function renderRecipe(blueprint: Blueprint, anchorX: number, anchorY: number, is
   if (isSelected) {
     for (const recipe of blueprint.recipe) {
       const item = game.inventory[recipe.item];
-      drawSprite(item.spriteId, 1, 0);
-      drawText(`${item.name} x${recipe.amount}`, 12, 2);
+      drawSprite(item.spriteId, 2, 0);
+      drawText(`${item.name} x${recipe.amount}`, 14, 2);
       translateTransform(0, 10);
     }
   }
@@ -787,7 +787,7 @@ function renderInventoryItem(id: ItemId, x: number, y: number) {
   const item = game.inventory[id];
   resetTransform();
   translateTransform(x, y);
-  drawRect(0, 0, 10, 10, "rgba(0,0,0,0.5)", true);
+  drawRect(0, 0, 10, 10, "black", true);
   drawSprite(item.spriteId, 0, 0);
   drawText(item.count.toString(), 10, 5, "white", "right");
 }
@@ -800,7 +800,7 @@ function renderBlueprint(id: BlueprintId, x: number, y: number) {
   const blueprint = game.blueprints[id];
   resetTransform();
   translateTransform(x, y);
-  drawRect(0, 0, 10, 10, blueprint.isUnlocked ? "rgba(0,0,0,0.5)" : "rgba(255, 0, 0, 0.5)", true);
+  drawRect(0, 0, 10, 10, blueprint.isUnlocked ? "black" : "red", true);
   drawSprite(blueprint.spriteId, 0, 0);
 }
 
