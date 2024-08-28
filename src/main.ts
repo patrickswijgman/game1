@@ -366,7 +366,7 @@ const game: Game = {
 
 async function setup() {
   await setupTextures();
-  await setupFont();
+  await setupFonts();
   setupSprites();
   setupItems();
   setupBlueprints();
@@ -379,8 +379,8 @@ async function setupTextures() {
   loadFlashTexture("atlas_flash", "atlas", "white");
 }
 
-async function setupFont() {
-  await loadFont("default", "fonts/pixelmix.ttf", "pixelmix", 8);
+async function setupFonts() {
+  await loadFont("default", "fonts/pixelmix.ttf", "pixelmix", 4);
   setFont("default");
 }
 
@@ -425,6 +425,8 @@ function setupBlueprints() {
     { item: ItemId.TWIG, amount: 10 },
     { item: ItemId.PEBBLE, amount: 10 },
   ]);
+
+  game.blueprints[BlueprintId.CRAFTING_TABLE].isUnlocked = true;
 }
 
 function setupScenes() {
@@ -737,18 +739,39 @@ function renderCraftingChoice(scene: Scene, id: BlueprintId, x: number, y: numbe
     scaleTransform(1.25, 1.25);
   }
   drawSprite(blueprint.spriteId, -8, -15);
+  renderRecipe(blueprint, x, y, isSelected);
+}
+
+function renderRecipe(blueprint: Blueprint, anchorX: number, anchorY: number, isSelected: boolean) {
+  const w = 100;
+  const h = 10 * blueprint.recipe.length + 16 + 4;
+  const x = anchorX;
+  const y = anchorY - h;
+  const isCraftable = blueprint.recipe.every((recipe) => game.inventory[recipe.item].count >= recipe.amount);
+  let message = "Craftable";
+  let isError = false;
+  if (!isCraftable) {
+    message = "Not enough resources";
+    isError = true;
+  }
+  if (!blueprint.isUnlocked) {
+    message = "Locked";
+    isError = true;
+  }
+  resetTransform();
+  translateTransform(x, y);
+  drawRect(0, 0, w, h, "rgba(0,0,0,0.5)", true);
+  drawRect(0, 0, w, h);
+  drawText(blueprint.name, 2, 3);
+  translateTransform(0, 8);
+  drawText(message, 2, 2, isError ? "red" : "green");
+  translateTransform(0, 8);
   if (isSelected) {
-    for (let i = 0; i < blueprint.recipe.length; i++) {
-      const recipe = blueprint.recipe[i];
+    for (const recipe of blueprint.recipe) {
       const item = game.inventory[recipe.item];
-      resetTransform();
-      translateTransform(x + i * 12, y - 12);
-      drawRect(0, 0, 12, 12, "rgba(0,0,0,0.5)", true);
-      drawRect(0, 0, 12, 12, "white");
-      drawSprite(item.spriteId, 0, 0);
-      translateTransform(11, 6);
-      scaleTransform(0.5, 0.5);
-      drawText(recipe.amount.toString(), 0, 0, "white", "right");
+      drawSprite(item.spriteId, 1, 0);
+      drawText(`${item.name} x${recipe.amount}`, 12, 2);
+      translateTransform(0, 10);
     }
   }
 }
@@ -766,9 +789,7 @@ function renderInventoryItem(id: ItemId, x: number, y: number) {
   translateTransform(x, y);
   drawRect(0, 0, 10, 10, "rgba(0,0,0,0.5)", true);
   drawSprite(item.spriteId, 0, 0);
-  translateTransform(10, 5);
-  scaleTransform(0.5, 0.5);
-  drawText(item.count.toString(), 0, 0, "white", "right");
+  drawText(item.count.toString(), 10, 5, "white", "right");
 }
 
 function renderToolBelt() {
@@ -787,7 +808,7 @@ function renderMetrics() {
   const { fps } = getEngineState();
   resetTransform();
   translateTransform(1, 1);
-  scaleTransform(0.25, 0.25);
+  scaleTransform(0.5, 0.5);
   drawText(fps.toString(), 0, 0, "lime");
 }
 
