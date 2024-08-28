@@ -272,14 +272,19 @@ const enum BlueprintId {
   CRAFTING_TABLE = "crafting_table",
 }
 
+type BlueprintRecipe = Array<{
+  item: ItemId;
+  amount: number;
+}>;
+
 type Blueprint = {
   name: string;
   spriteId: string;
-  recipe: Record<string, number>;
+  recipe: BlueprintRecipe;
   isUnlocked: boolean;
 };
 
-function loadBlueprint(id: BlueprintId, name: string, spriteId: string, recipe: Record<string, number>) {
+function loadBlueprint(id: BlueprintId, name: string, spriteId: string, recipe: BlueprintRecipe) {
   game.blueprints[id] = { name, spriteId, recipe, isUnlocked: false };
 }
 
@@ -412,8 +417,14 @@ function setupItems() {
 }
 
 function setupBlueprints() {
-  loadBlueprint(BlueprintId.AXE, "Axe", "tool_axe", { [ItemId.TWIG]: 10, [ItemId.PEBBLE]: 10 });
-  loadBlueprint(BlueprintId.CRAFTING_TABLE, "Crafting table", "building_crafting_table", { [ItemId.TWIG]: 10, [ItemId.PEBBLE]: 10 });
+  loadBlueprint(BlueprintId.AXE, "Axe", "tool_axe", [
+    { item: ItemId.TWIG, amount: 10 },
+    { item: ItemId.LOG, amount: 5 },
+  ]);
+  loadBlueprint(BlueprintId.CRAFTING_TABLE, "Crafting table", "building_crafting_table", [
+    { item: ItemId.TWIG, amount: 10 },
+    { item: ItemId.PEBBLE, amount: 10 },
+  ]);
 }
 
 function setupScenes() {
@@ -726,10 +737,19 @@ function renderCraftingChoice(scene: Scene, id: BlueprintId, x: number, y: numbe
     scaleTransform(1.25, 1.25);
   }
   drawSprite(blueprint.spriteId, -8, -15);
-  resetTransform();
-  translateTransform(x, y);
-  for (const key in blueprint.recipe) {
-    drawSprite("item_twig", 0, 0);
+  if (isSelected) {
+    for (let i = 0; i < blueprint.recipe.length; i++) {
+      const recipe = blueprint.recipe[i];
+      const item = game.inventory[recipe.item];
+      resetTransform();
+      translateTransform(x + i * 12, y - 12);
+      drawRect(0, 0, 12, 12, "rgba(0,0,0,0.5)", true);
+      drawRect(0, 0, 12, 12, "white");
+      drawSprite(item.spriteId, 0, 0);
+      translateTransform(11, 6);
+      scaleTransform(0.5, 0.5);
+      drawText(recipe.amount.toString(), 0, 0, "white", "right");
+    }
   }
 }
 
