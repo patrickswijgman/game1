@@ -2,6 +2,7 @@ import {
   addVector,
   addVectorScaled,
   applyCameraTransform,
+  consumeInputPressed,
   copyVector,
   doesRectangleContain,
   drawRect,
@@ -12,6 +13,7 @@ import {
   getVectorDistance,
   InputCode,
   isInputDown,
+  isInputPressed,
   isRectangleValid,
   loadFlashTexture,
   loadFont,
@@ -140,6 +142,7 @@ function createEntity(scene: Scene, x: number, y: number) {
   };
   scene.entities[e.id] = e;
   scene.active.push(e.id);
+  scene.render.push(e.id);
   return e;
 }
 
@@ -287,18 +290,22 @@ const enum SceneId {
 type Scene = {
   entities: Record<string, Entity>;
   active: string[];
+  render: string[];
   destroyed: string[];
   playerId: string;
   interactableId: string;
+  selectedId: string;
 };
 
 function createScene(id: SceneId) {
   const scene: Scene = {
     entities: {},
     active: [],
+    render: [],
     destroyed: [],
     playerId: "",
     interactableId: "",
+    selectedId: "",
   };
   game.scenes[id] = scene;
   return scene;
@@ -332,6 +339,8 @@ function loadWorldScene() {
 
 const enum GameStateId {
   NONE = "",
+  NORMAL = "normal",
+  CRAFTING = "crafting",
 }
 
 type Game = {
@@ -347,7 +356,7 @@ const game: Game = {
   sceneId: "",
   inventory: {},
   blueprints: {},
-  state: GameStateId.NONE,
+  state: GameStateId.NORMAL,
 };
 
 async function setup() {
@@ -417,20 +426,41 @@ function update() {
 
   for (const id of scene.active) {
     const e = scene.entities[id];
-    updateState(scene, e);
-    updateHitbox(e);
-    checkForCollisions(scene, e);
-    e.isOutlineVisible = id === scene.interactableId;
+
+    switch (game.state) {
+      case GameStateId.NORMAL:
+        {
+          updateState(scene, e);
+          updateHitbox(e);
+          checkForCollisions(scene, e);
+          e.isOutlineVisible = id === scene.interactableId;
+        }
+        break;
+
+      case GameStateId.CRAFTING:
+        {
+          if (isInputPressed(InputCode.KEY_C) || isInputPressed(InputCode.KEY_ESCAPE)) {
+            game.state = GameStateId.NORMAL;
+          }
+        }
+        break;
+    }
   }
 
   const player = scene.entities[scene.playerId];
   updateCamera(player.pos.x, player.pos.y);
   cleanUpEntities(scene);
-  depthSortEntities(scene, scene.active);
+  depthSortEntities(scene, scene.render);
 
-  for (const id of scene.active) {
+  for (const id of scene.render) {
     const e = scene.entities[id];
     renderEntity(e);
+  }
+
+  switch (game.state) {
+    case GameStateId.CRAFTING:
+      renderCrafting(scene);
+      break;
   }
 
   renderInventory();
@@ -440,6 +470,7 @@ function update() {
 
 function updateState(scene: Scene, e: Entity) {
   const { delta } = getEngineState();
+
   switch (e.state) {
     case StateId.PLAYER_CONTROL:
       {
@@ -461,10 +492,18 @@ function updateState(scene: Scene, e: Entity) {
         normalizeVector(e.vel);
         scaleVector(e.vel, PLAYER_SPEED);
         addVectorScaled(e.pos, e.vel, delta);
+
         updateNearestInteractable(scene, e);
         const interactable = scene.entities[scene.interactableId];
+
         if (interactable && isInputDown(InputCode.KEY_Z)) {
           setState(e, StateId.PLAYER_INTERACT);
+        }
+
+        if (isInputPressed(InputCode.KEY_C)) {
+          consumeInputPressed(InputCode.KEY_C);
+          game.state = GameStateId.CRAFTING;
+          scene.selectedId = BlueprintId.CRAFTING_TABLE;
         }
       }
       break;
@@ -541,6 +580,7 @@ function checkForCollisions(scene: Scene, e: Entity) {
   if (isRectangleValid(e.body)) {
     copyVector(e.body, e.pos);
     addVector(e.body, e.bodyOffset);
+
     if (e.isRigid) {
       resetVector(e.intersection);
       for (const id of scene.active) {
@@ -618,6 +658,7 @@ function cleanUpEntities(scene: Scene) {
     for (const id of scene.destroyed) {
       delete scene.entities[id];
       remove(scene.active, id);
+      remove(scene.render, id);
     }
     scene.destroyed.length = 0;
   }
@@ -664,6 +705,31 @@ function renderEntity(e: Entity) {
       drawRectInstance(e.body, "red");
       drawRectInstance(e.hitbox, "yellow");
     }
+  }
+}
+
+function renderCrafting(scene: Scene) {
+  renderCraftingChoice(scene, BlueprintId.CRAFTING_TABLE, 4, HEIGHT - 40);
+}
+
+function renderCraftingChoice(scene: Scene, id: BlueprintId, x: number, y: number) {
+  const blueprint = game.blueprints[id];
+  const isSelected = id === scene.selectedId;
+  resetTransform();
+  translateTransform(x, y);
+  drawRect(0, 0, 16, 16, blueprint.isUnlocked ? "rgba(0,0,0,0.5)" : "rgba(255, 0, 0, 0.5)", true);
+  if (isSelected) {
+    drawRect(0, 0, 16, 16, "white");
+  }
+  translateTransform(8, 15);
+  if (isSelected) {
+    scaleTransform(1.25, 1.25);
+  }
+  drawSprite(blueprint.spriteId, -8, -15);
+  resetTransform();
+  translateTransform(x, y);
+  for (const key in blueprint.recipe) {
+    drawSprite("item_twig", 0, 0);
   }
 }
 
