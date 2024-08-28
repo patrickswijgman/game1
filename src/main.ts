@@ -78,33 +78,12 @@ const enum StateId {
   TREE_IDLE = "tree_idle",
 }
 
-const enum ItemId {
-  NONE = "",
-  TWIG = "twig",
-  LOG = "log",
-  PEBBLE = "pebble",
-  ROCK = "rock",
-}
-
-const enum ToolId {
-  NONE = "",
-  AXE = "axe",
-}
-
-const enum SceneId {
-  WORLD = "world",
-}
-
-const enum GameStateId {
-  NONE = "",
-}
-
 type Entity = {
   id: string;
   type: TypeId;
   state: StateId;
   item: ItemId;
-  tool: ToolId;
+  blueprint: BlueprintId;
   pos: Vector;
   vel: Vector;
   start: Vector;
@@ -135,7 +114,7 @@ function createEntity(scene: Scene, x: number, y: number) {
     type: TypeId.NONE,
     state: StateId.NONE,
     item: ItemId.NONE,
-    tool: ToolId.NONE,
+    blueprint: BlueprintId.NONE,
     pos: vec(x, y),
     vel: vec(),
     start: vec(x, y),
@@ -209,7 +188,7 @@ function createTree(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
   e.type = TypeId.TREE;
   e.state = StateId.TREE_IDLE;
-  e.tool = ToolId.AXE;
+  e.blueprint = BlueprintId.AXE;
   e.spriteId = "tree";
   e.pivot.x = 16;
   e.pivot.y = 31;
@@ -265,6 +244,14 @@ function createItemRock(scene: Scene, x: number, y: number) {
   return createItem(scene, x, y, ItemId.ROCK, "item_rock");
 }
 
+const enum ItemId {
+  NONE = "",
+  TWIG = "twig",
+  LOG = "log",
+  PEBBLE = "pebble",
+  ROCK = "rock",
+}
+
 type Item = {
   name: string;
   spriteId: string;
@@ -273,19 +260,28 @@ type Item = {
 };
 
 function loadItem(id: ItemId, name: string, spriteId: string) {
-  const item: Item = { name, spriteId, count: 0, max: 99 };
-  game.inventory[id] = item;
+  game.inventory[id] = { name, spriteId, count: 0, max: 99 };
 }
 
-type Tool = {
+const enum BlueprintId {
+  NONE = "",
+  AXE = "axe",
+  CRAFTING_TABLE = "crafting_table",
+}
+
+type Blueprint = {
   name: string;
   spriteId: string;
+  recipe: Record<string, number>;
   isUnlocked: boolean;
 };
 
-function loadTool(id: ToolId, name: string, spriteId: string) {
-  const tool: Tool = { name, spriteId, isUnlocked: false };
-  game.tools[id] = tool;
+function loadBlueprint(id: BlueprintId, name: string, spriteId: string, recipe: Record<string, number>) {
+  game.blueprints[id] = { name, spriteId, recipe, isUnlocked: false };
+}
+
+const enum SceneId {
+  WORLD = "world",
 }
 
 type Scene = {
@@ -310,11 +306,9 @@ function createScene(id: SceneId) {
 
 function loadWorldScene() {
   const scene = createScene(SceneId.WORLD);
-  const objects = [TypeId.SHRUB, TypeId.TREE, TypeId.STONES, TypeId.ROCK];
-
   createPlayer(scene, 160, 90);
   setCameraPosition(160, 90);
-
+  const objects = [TypeId.SHRUB, TypeId.TREE, TypeId.STONES, TypeId.ROCK];
   for (let x = 0; x < WIDTH; x += TILE_SIZE) {
     for (let y = 0; y < HEIGHT; y += TILE_SIZE) {
       const type = pick(objects);
@@ -336,11 +330,15 @@ function loadWorldScene() {
   }
 }
 
+const enum GameStateId {
+  NONE = "",
+}
+
 type Game = {
   scenes: Record<string, Scene>;
   sceneId: string;
   inventory: Record<string, Item>;
-  tools: Record<string, Tool>;
+  blueprints: Record<string, Blueprint>;
   state: GameStateId;
 };
 
@@ -348,7 +346,7 @@ const game: Game = {
   scenes: {},
   sceneId: "",
   inventory: {},
-  tools: {},
+  blueprints: {},
   state: GameStateId.NONE,
 };
 
@@ -357,7 +355,7 @@ async function setup() {
   await setupFont();
   setupSprites();
   setupItems();
-  setupTools();
+  setupBlueprints();
   setupScenes();
 }
 
@@ -393,6 +391,8 @@ function setupSprites() {
   loadSprite("item_rock", "atlas", 48, 48, 8, 8);
 
   loadSprite("tool_axe", "atlas", 0, 64, 8, 8);
+
+  loadSprite("building_crafting_table", "atlas", 0, 80, 16, 16);
 }
 
 function setupItems() {
@@ -402,8 +402,9 @@ function setupItems() {
   loadItem(ItemId.ROCK, "Rock", "item_rock");
 }
 
-function setupTools() {
-  loadTool(ToolId.AXE, "Axe", "tool_axe");
+function setupBlueprints() {
+  loadBlueprint(BlueprintId.AXE, "Axe", "tool_axe", { [ItemId.TWIG]: 10, [ItemId.PEBBLE]: 10 });
+  loadBlueprint(BlueprintId.CRAFTING_TABLE, "Crafting table", "building_crafting_table", { [ItemId.TWIG]: 10, [ItemId.PEBBLE]: 10 });
 }
 
 function setupScenes() {
@@ -603,7 +604,7 @@ function updateNearestInteractable(scene: Scene, player: Entity) {
     const target = scene.entities[id];
     const distance = getVectorDistance(player.pos, target.pos);
     if (target.isInteractable && distance < PLAYER_RANGE && distance < smallestDistance) {
-      if (target.tool && !game.tools[target.tool].isUnlocked) {
+      if (target.blueprint && !game.blueprints[target.blueprint].isUnlocked) {
         continue;
       }
       scene.interactableId = id;
@@ -685,15 +686,15 @@ function renderInventoryItem(id: ItemId, x: number, y: number) {
 }
 
 function renderToolBelt() {
-  renderTool(ToolId.AXE, 4, 14);
+  renderBlueprint(BlueprintId.AXE, 4, 14);
 }
 
-function renderTool(id: ToolId, x: number, y: number) {
-  const tool = game.tools[id];
+function renderBlueprint(id: BlueprintId, x: number, y: number) {
+  const blueprint = game.blueprints[id];
   resetTransform();
   translateTransform(x, y);
-  drawRect(0, 0, 10, 10, tool.isUnlocked ? "rgba(0,0,0,0.5)" : "rgba(255, 0, 0, 0.5)", true);
-  drawSprite(tool.spriteId, 0, 0);
+  drawRect(0, 0, 10, 10, blueprint.isUnlocked ? "rgba(0,0,0,0.5)" : "rgba(255, 0, 0, 0.5)", true);
+  drawSprite(blueprint.spriteId, 0, 0);
 }
 
 function renderMetrics() {
