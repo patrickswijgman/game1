@@ -104,6 +104,50 @@ const ASSETS: AssetsManifest = {
   sounds: {},
 };
 
+const enum ItemId {
+  NONE = "",
+  TWIG = "twig",
+  LOG = "log",
+  PEBBLE = "pebble",
+  ROCK = "rock",
+}
+
+type Item = {
+  name: string;
+  spriteId: string;
+  count: number;
+};
+
+const MAX_ITEM_COUNT = 99;
+
+const ITEMS: Record<ItemId, Item> = {
+  [ItemId.NONE]: {
+    name: "",
+    spriteId: "",
+    count: 0,
+  },
+  [ItemId.TWIG]: {
+    name: "Twig",
+    spriteId: "item_twig",
+    count: 0,
+  },
+  [ItemId.LOG]: {
+    name: "Log",
+    spriteId: "item_log",
+    count: 0,
+  },
+  [ItemId.PEBBLE]: {
+    name: "Pebble",
+    spriteId: "item_pebble",
+    count: 0,
+  },
+  [ItemId.ROCK]: {
+    name: "Rock",
+    spriteId: "item_rock",
+    count: 0,
+  },
+};
+
 const enum Type {
   NONE = "",
   PLAYER = "player",
@@ -292,25 +336,6 @@ function createItemRock(scene: Scene, x: number, y: number) {
   return createItem(scene, x, y, ItemId.ROCK, "item_rock");
 }
 
-const enum ItemId {
-  NONE = "",
-  TWIG = "twig",
-  LOG = "log",
-  PEBBLE = "pebble",
-  ROCK = "rock",
-}
-
-type Item = {
-  name: string;
-  spriteId: string;
-  count: number;
-  max: number;
-};
-
-function loadItem(id: ItemId, name: string, spriteId: string) {
-  game.items[id] = { name, spriteId, count: 0, max: 99 };
-}
-
 const enum BlueprintId {
   NONE = "",
   AXE = "axe",
@@ -387,7 +412,6 @@ const enum GameStateId {
 type Game = {
   scenes: Record<string, Scene>;
   sceneId: string;
-  items: Record<string, Item>;
   inventory: Array<ItemId>;
   blueprints: Record<string, Blueprint>;
   blueprintsPerBuilding: Record<string, Array<BlueprintId>>;
@@ -398,7 +422,6 @@ type Game = {
 const game: Game = {
   scenes: {},
   sceneId: "",
-  items: {},
   inventory: [ItemId.TWIG, ItemId.PEBBLE],
   blueprints: {},
   blueprintsPerBuilding: {},
@@ -408,17 +431,9 @@ const game: Game = {
 
 async function setup() {
   await loadAssets(ASSETS);
-  setupItems();
   setupTools();
   setupBuildings();
   setupScenes();
-}
-
-function setupItems() {
-  loadItem(ItemId.TWIG, "Twig", "item_twig");
-  loadItem(ItemId.PEBBLE, "Pebble", "item_pebble");
-  loadItem(ItemId.LOG, "Log", "item_log");
-  loadItem(ItemId.ROCK, "Rock", "item_rock");
 }
 
 function setupTools() {
@@ -581,8 +596,8 @@ function updateState(scene: Scene, e: Entity) {
         e.pos.x = tween(e.start.x, player.pos.x, ITEM_SEEK_TIME, "easeInCirc", e.timer1);
         e.pos.y = tween(e.start.y, player.pos.y, ITEM_SEEK_TIME, "easeInCirc", e.timer1);
         if (completed) {
-          const item = game.items[e.itemId];
-          item.count = Math.min(item.count + 1, item.max);
+          const item = ITEMS[e.itemId];
+          item.count = Math.min(item.count + 1, MAX_ITEM_COUNT);
           destroyEntity(scene, e.id);
         }
       }
@@ -699,7 +714,7 @@ function setState(e: Entity, state: State) {
 }
 
 function isBlueprintCraftable(id: BlueprintId) {
-  return game.blueprints[id].recipe.every((recipe) => game.items[recipe.itemId].count >= recipe.amount);
+  return game.blueprints[id].recipe.every((recipe) => ITEMS[recipe.itemId].count >= recipe.amount);
 }
 
 function renderEntity(e: Entity) {
@@ -777,7 +792,7 @@ function renderCraftingRecipe(blueprint: Blueprint, anchorX: number, anchorY: nu
   drawText(message, 0, 0, isError ? "red" : "green");
   translateTransform(0, 8);
   for (const recipe of blueprint.recipe) {
-    const item = game.items[recipe.itemId];
+    const item = ITEMS[recipe.itemId];
     drawSprite(item.spriteId, -2, -4);
     drawText(item.name, 12, 2);
     drawText(`x${recipe.amount} (${item.count})`, bg.w - 8, 2, "white", "right");
@@ -791,7 +806,7 @@ function renderInventory() {
   drawText("Inventory", 0, 0);
   translateTransform(0, 5);
   for (const id of game.inventory) {
-    const item = game.items[id];
+    const item = ITEMS[id];
     drawSprite("box", 0, 0);
     drawSprite(item.spriteId, 0, 0);
     drawText(item.count.toString(), 14, 10, "white", "right");
