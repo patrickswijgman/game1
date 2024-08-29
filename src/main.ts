@@ -793,7 +793,8 @@ function renderRecipeTooltip(blueprint: Blueprint, anchorX: number, anchorY: num
   for (const recipe of blueprint.recipe) {
     const item = game.inventory[recipe.item];
     drawSprite(item.spriteId, -2, -4);
-    drawText(`${item.name} x${recipe.amount}`, 12, 2);
+    drawText(item.name, 12, 2);
+    drawText(`x${recipe.amount} (${item.count})`, bg.w - 8, 2, "white", "right");
     translateTransform(0, 10);
   }
 }
@@ -801,9 +802,7 @@ function renderRecipeTooltip(blueprint: Blueprint, anchorX: number, anchorY: num
 function renderInventory() {
   resetTransform();
   translateTransform(4, 10);
-  scaleTransform(0.8, 0.8);
   drawText("Inventory", 0, 0);
-  scaleTransform(1.25, 1.25);
   translateTransform(0, 4);
   for (const id of INVENTORY_ITEMS) {
     const item = game.inventory[id];
@@ -817,9 +816,7 @@ function renderInventory() {
 function renderToolBelt() {
   resetTransform();
   translateTransform(4, 30);
-  scaleTransform(0.8, 0.8);
   drawText("Tools", 0, 0);
-  scaleTransform(1.25, 1.25);
   translateTransform(0, 4);
   for (const id of TOOL_BELT_ITEMS) {
     const blueprint = game.blueprints[id];
