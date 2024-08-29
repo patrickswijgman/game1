@@ -780,7 +780,7 @@ function renderRecipeTooltip(blueprint: Blueprint, anchorX: number, anchorY: num
     isError = true;
   }
   resetTransform();
-  translateTransform(x - bg.w / 2, y);
+  translateTransform(x - bg.w / 2 + 8, y);
   drawSprite("tooltip", 0, 0);
   drawSprite("tooltip_outline", 0, 0);
   translateTransform(4, 4);
