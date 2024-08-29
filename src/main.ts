@@ -61,8 +61,6 @@ const PLAYER_INTERACT_TIME = 200;
 const ITEM_SEEK_TIME = 200;
 const ITEM_SEEK_DELAY = 500;
 const INVENTORY_ITEMS = [ItemId.TWIG, ItemId.LOG, ItemId.PEBBLE, ItemId.ROCK];
-const TOOL_BELT_ITEMS = [BlueprintId.AXE];
-const CRAFTING_MENU_ITEMS = [BlueprintId.AXE, BlueprintId.CRAFTING_TABLE];
 
 const enum TypeId {
   NONE = "",
@@ -89,7 +87,7 @@ type Entity = {
   type: TypeId;
   state: StateId;
   item: ItemId;
-  blueprint: BlueprintId;
+  tool: BlueprintId;
   pos: Vector;
   vel: Vector;
   start: Vector;
@@ -120,7 +118,7 @@ function createEntity(scene: Scene, x: number, y: number) {
     type: TypeId.NONE,
     state: StateId.NONE,
     item: ItemId.NONE,
-    blueprint: BlueprintId.NONE,
+    tool: BlueprintId.NONE,
     pos: vec(x, y),
     vel: vec(),
     start: vec(x, y),
@@ -195,7 +193,7 @@ function createTree(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
   e.type = TypeId.TREE;
   e.state = StateId.TREE_IDLE;
-  e.blueprint = BlueprintId.AXE;
+  e.tool = BlueprintId.AXE;
   e.spriteId = "tree";
   e.pivot.x = 16;
   e.pivot.y = 31;
@@ -285,11 +283,10 @@ type Blueprint = {
   name: string;
   spriteId: string;
   recipe: BlueprintRecipe;
-  isUnlocked: boolean;
 };
 
-function loadBlueprint(id: BlueprintId, name: string, spriteId: string, isUnlocked: boolean, recipe: BlueprintRecipe) {
-  game.blueprints[id] = { name, spriteId, recipe, isUnlocked };
+function loadBlueprint(id: BlueprintId, name: string, spriteId: string, recipe: BlueprintRecipe) {
+  game.blueprints[id] = { name, spriteId, recipe };
 }
 
 const enum SceneId {
@@ -357,6 +354,8 @@ type Game = {
   sceneId: string;
   inventory: Record<string, Item>;
   blueprints: Record<string, Blueprint>;
+  unlockedBlueprints: Array<BlueprintId>;
+  unlockedTools: Array<BlueprintId>;
   state: GameStateId;
 };
 
@@ -365,6 +364,8 @@ const game: Game = {
   sceneId: "",
   inventory: {},
   blueprints: {},
+  unlockedBlueprints: [BlueprintId.AXE, BlueprintId.CRAFTING_TABLE],
+  unlockedTools: [],
   state: GameStateId.NORMAL,
 };
 
@@ -414,6 +415,7 @@ function setupSprites() {
 
   loadSprite("box", "atlas", 0, 96, 16, 16);
   loadSprite("box_selection", "atlas", 16, 96, 16, 16);
+  loadSprite("locked", "atlas", 32, 96, 16, 16);
   loadSprite("tooltip", "atlas", 0, 112, 80, 64);
   loadSprite("tooltip_outline", "atlas_outline", 0, 112, 80, 64);
 }
@@ -426,11 +428,11 @@ function setupItems() {
 }
 
 function setupBlueprints() {
-  loadBlueprint(BlueprintId.AXE, "Axe", "tool_axe", true, [
+  loadBlueprint(BlueprintId.AXE, "Axe", "tool_axe", [
     { item: ItemId.TWIG, amount: 10 },
     { item: ItemId.LOG, amount: 5 },
   ]);
-  loadBlueprint(BlueprintId.CRAFTING_TABLE, "Crafting table", "building_crafting_table", true, [
+  loadBlueprint(BlueprintId.CRAFTING_TABLE, "Crafting table", "building_crafting_table", [
     { item: ItemId.TWIG, amount: 10 },
     { item: ItemId.PEBBLE, amount: 10 },
   ]);
@@ -468,7 +470,7 @@ function update() {
           }
           if (isInputPressed(InputCode.KEY_RIGHT)) {
             consumeInputPressed(InputCode.KEY_RIGHT);
-            scene.selectedIndex = Math.min(CRAFTING_MENU_ITEMS.length - 1, scene.selectedIndex + 1);
+            scene.selectedIndex = Math.min(game.unlockedBlueprints.length - 1, scene.selectedIndex + 1);
           }
         }
         break;
@@ -632,35 +634,16 @@ function checkForCollisions(scene: Scene, e: Entity) {
 function dropItems(scene: Scene, e: Entity) {
   switch (e.type) {
     case TypeId.SHRUB:
-      repeat(random(1, 2), () => dropItem(scene, e, ItemId.TWIG));
+      repeat(random(1, 2), () => createItemTwig(scene, e.pos.x + random(-4, 4), e.pos.y + random(-4, 4)));
       break;
     case TypeId.STONES:
-      repeat(random(1, 2), () => dropItem(scene, e, ItemId.PEBBLE));
+      repeat(random(1, 2), () => createItemPebble(scene, e.pos.x + random(-4, 4), e.pos.y + random(-4, 4)));
       break;
     case TypeId.TREE:
-      repeat(random(1, 2), () => dropItem(scene, e, ItemId.LOG));
+      repeat(random(1, 2), () => createItemLog(scene, e.pos.x + random(-4, 4), e.pos.y + random(-4, 4)));
       break;
     case TypeId.ROCK:
-      repeat(random(1, 2), () => dropItem(scene, e, ItemId.ROCK));
-      break;
-  }
-}
-
-function dropItem(scene: Scene, e: Entity, item: ItemId) {
-  const x = e.pos.x + random(-4, 4);
-  const y = e.pos.y + random(-4, 4);
-  switch (item) {
-    case ItemId.TWIG:
-      createItemTwig(scene, x, y);
-      break;
-    case ItemId.PEBBLE:
-      createItemPebble(scene, x, y);
-      break;
-    case ItemId.LOG:
-      createItemLog(scene, x, y);
-      break;
-    case ItemId.ROCK:
-      createItemRock(scene, x, y);
+      repeat(random(1, 2), () => createItemRock(scene, e.pos.x + random(-4, 4), e.pos.y + random(-4, 4)));
       break;
   }
 }
@@ -672,7 +655,7 @@ function updateNearestInteractable(scene: Scene, player: Entity) {
     const target = scene.entities[id];
     const distance = getVectorDistance(player.pos, target.pos);
     if (target.isInteractable && distance < PLAYER_RANGE && distance < smallestDistance) {
-      if (target.blueprint && !game.blueprints[target.blueprint].isUnlocked) {
+      if (target.tool && !game.unlockedTools.includes(target.tool)) {
         continue;
       }
       scene.interactableId = id;
@@ -741,12 +724,12 @@ function renderEntity(e: Entity) {
 }
 
 function renderCraftingMenu(scene: Scene) {
-  for (let i = 0; i < CRAFTING_MENU_ITEMS.length; i++) {
-    const id = CRAFTING_MENU_ITEMS[i];
+  for (let i = 0; i < game.unlockedBlueprints.length; i++) {
+    const id = game.unlockedBlueprints[i];
     const blueprint = game.blueprints[id];
-    const isSelected = id === CRAFTING_MENU_ITEMS[scene.selectedIndex];
+    const isSelected = id === game.unlockedBlueprints[scene.selectedIndex];
     const isCraftable = isBlueprintCraftable(id);
-    const x = WIDTH / 2 + i * 16 - CRAFTING_MENU_ITEMS.length * 8;
+    const x = WIDTH / 2 + i * 16 - game.unlockedBlueprints.length * 8;
     const y = HEIGHT - 20;
     resetTransform();
     translateTransform(x, y);
@@ -773,10 +756,6 @@ function renderRecipeTooltip(blueprint: Blueprint, anchorX: number, anchorY: num
   let isError = false;
   if (!isCraftable) {
     message = "Not enough resources";
-    isError = true;
-  }
-  if (!blueprint.isUnlocked) {
-    message = "Locked";
     isError = true;
   }
   resetTransform();
@@ -818,7 +797,7 @@ function renderToolBelt() {
   translateTransform(4, 30);
   drawText("Tools", 0, 0);
   translateTransform(0, 4);
-  for (const id of TOOL_BELT_ITEMS) {
+  for (const id of game.unlockedTools) {
     const blueprint = game.blueprints[id];
     drawSprite("box", 0, 0);
     drawSprite(blueprint.spriteId, 0, 0);
