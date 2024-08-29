@@ -5,7 +5,6 @@ import {
   consumeInputPressed,
   copyVector,
   doesRectangleContain,
-  drawRect,
   drawRectInstance,
   drawSprite,
   drawText,
@@ -60,9 +59,8 @@ const PLAYER_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
 const ITEM_SEEK_TIME = 200;
 const ITEM_SEEK_DELAY = 500;
-const INVENTORY_ITEMS = [ItemId.TWIG, ItemId.LOG, ItemId.PEBBLE, ItemId.ROCK];
 
-const enum TypeId {
+const enum Type {
   NONE = "",
   PLAYER = "player",
   SHRUB = "shrub",
@@ -72,7 +70,7 @@ const enum TypeId {
   ITEM = "item",
 }
 
-const enum StateId {
+const enum State {
   NONE = "",
   PLAYER_CONTROL = "player_control",
   PLAYER_INTERACT = "player_interact",
@@ -84,10 +82,10 @@ const enum StateId {
 
 type Entity = {
   id: string;
-  type: TypeId;
-  state: StateId;
-  item: ItemId;
-  tool: BlueprintId;
+  type: Type;
+  state: State;
+  itemId: ItemId;
+  toolId: BlueprintId;
   pos: Vector;
   vel: Vector;
   start: Vector;
@@ -115,10 +113,10 @@ type Entity = {
 function createEntity(scene: Scene, x: number, y: number) {
   const e: Entity = {
     id: uuid(),
-    type: TypeId.NONE,
-    state: StateId.NONE,
-    item: ItemId.NONE,
-    tool: BlueprintId.NONE,
+    type: Type.NONE,
+    state: State.NONE,
+    itemId: ItemId.NONE,
+    toolId: BlueprintId.NONE,
     pos: vec(x, y),
     vel: vec(),
     start: vec(x, y),
@@ -154,8 +152,8 @@ function destroyEntity(scene: Scene, id: string) {
 
 function createPlayer(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.type = TypeId.PLAYER;
-  e.state = StateId.PLAYER_CONTROL;
+  e.type = Type.PLAYER;
+  e.state = State.PLAYER_CONTROL;
   e.spriteId = "player";
   e.pivot.x = 8;
   e.pivot.y = 15;
@@ -170,8 +168,8 @@ function createPlayer(scene: Scene, x: number, y: number) {
 
 function createShrub(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.type = TypeId.SHRUB;
-  e.state = StateId.SHRUB_IDLE;
+  e.type = Type.SHRUB;
+  e.state = State.SHRUB_IDLE;
   e.spriteId = "shrub";
   e.pivot.x = 8;
   e.pivot.y = 15;
@@ -181,7 +179,7 @@ function createShrub(scene: Scene, x: number, y: number) {
 
 function createStones(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.type = TypeId.STONES;
+  e.type = Type.STONES;
   e.spriteId = "stones";
   e.pivot.x = 8;
   e.pivot.y = 15;
@@ -191,9 +189,9 @@ function createStones(scene: Scene, x: number, y: number) {
 
 function createTree(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.type = TypeId.TREE;
-  e.state = StateId.TREE_IDLE;
-  e.tool = BlueprintId.AXE;
+  e.type = Type.TREE;
+  e.state = State.TREE_IDLE;
+  e.toolId = BlueprintId.AXE;
   e.spriteId = "tree";
   e.pivot.x = 16;
   e.pivot.y = 31;
@@ -211,8 +209,9 @@ function createTree(scene: Scene, x: number, y: number) {
 
 function createRock(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
-  e.type = TypeId.ROCK;
+  e.type = Type.ROCK;
   e.spriteId = "rock";
+  e.toolId = BlueprintId.PICKAXE;
   e.pivot.x = 8;
   e.pivot.y = 15;
   e.body.w = 10;
@@ -223,11 +222,11 @@ function createRock(scene: Scene, x: number, y: number) {
   e.isInteractable = true;
 }
 
-function createItem(scene: Scene, x: number, y: number, item: ItemId, spriteId: string) {
+function createItem(scene: Scene, x: number, y: number, itemId: ItemId, spriteId: string) {
   const e = createEntity(scene, x, y);
-  e.type = TypeId.ITEM;
-  e.state = StateId.ITEM_IDLE;
-  e.item = item;
+  e.type = Type.ITEM;
+  e.state = State.ITEM_IDLE;
+  e.itemId = itemId;
   e.spriteId = spriteId;
   e.pivot.x = 4;
   e.pivot.y = 8;
@@ -265,17 +264,18 @@ type Item = {
 };
 
 function loadItem(id: ItemId, name: string, spriteId: string) {
-  game.inventory[id] = { name, spriteId, count: 0, max: 99 };
+  game.items[id] = { name, spriteId, count: 0, max: 99 };
 }
 
 const enum BlueprintId {
   NONE = "",
   AXE = "axe",
+  PICKAXE = "pickaxe",
   CRAFTING_TABLE = "crafting_table",
 }
 
 type BlueprintRecipe = Array<{
-  item: ItemId;
+  itemId: ItemId;
   amount: number;
 }>;
 
@@ -285,8 +285,13 @@ type Blueprint = {
   recipe: BlueprintRecipe;
 };
 
-function loadBlueprint(id: BlueprintId, name: string, spriteId: string, recipe: BlueprintRecipe) {
+function loadTool(id: BlueprintId, name: string, spriteId: string, recipe: BlueprintRecipe) {
   game.blueprints[id] = { name, spriteId, recipe };
+}
+
+function loadBuilding(id: BlueprintId, name: string, spriteId: string, recipe: BlueprintRecipe, blueprints: Array<BlueprintId>) {
+  game.blueprints[id] = { name, spriteId, recipe };
+  game.blueprintsPerBuilding[id] = blueprints;
 }
 
 const enum SceneId {
@@ -321,24 +326,10 @@ function loadWorldScene() {
   const scene = createScene(SceneId.WORLD);
   createPlayer(scene, 160, 90);
   setCameraPosition(160, 90);
-  const objects = [TypeId.SHRUB, TypeId.TREE, TypeId.STONES, TypeId.ROCK];
   for (let x = 0; x < WIDTH; x += TILE_SIZE) {
     for (let y = 0; y < HEIGHT; y += TILE_SIZE) {
-      const type = pick(objects);
-      switch (type) {
-        case TypeId.SHRUB:
-          createShrub(scene, x, y);
-          break;
-        case TypeId.TREE:
-          createTree(scene, x, y);
-          break;
-        case TypeId.STONES:
-          createStones(scene, x, y);
-          break;
-        case TypeId.ROCK:
-          createRock(scene, x, y);
-          break;
-      }
+      const factory = pick([createShrub, createTree, createStones, createRock]);
+      factory(scene, x, y);
     }
   }
 }
@@ -352,67 +343,58 @@ const enum GameStateId {
 type Game = {
   scenes: Record<string, Scene>;
   sceneId: string;
-  inventory: Record<string, Item>;
+  items: Record<string, Item>;
+  inventory: Array<ItemId>;
   blueprints: Record<string, Blueprint>;
-  unlockedBlueprints: Array<BlueprintId>;
-  unlockedTools: Array<BlueprintId>;
+  blueprintsPerBuilding: Record<string, Array<BlueprintId>>;
+  tools: Array<BlueprintId>;
   state: GameStateId;
 };
 
 const game: Game = {
   scenes: {},
   sceneId: "",
-  inventory: {},
+  items: {},
+  inventory: [ItemId.TWIG, ItemId.PEBBLE],
   blueprints: {},
-  unlockedBlueprints: [BlueprintId.AXE, BlueprintId.CRAFTING_TABLE],
-  unlockedTools: [],
+  blueprintsPerBuilding: {},
+  tools: [],
   state: GameStateId.NORMAL,
 };
 
 async function setup() {
-  await setupTextures();
-  await setupFonts();
+  await setupResources();
   setupSprites();
   setupItems();
-  setupBlueprints();
+  setupTools();
+  setupBuildings();
   setupScenes();
 }
 
-async function setupTextures() {
+async function setupResources() {
   await loadTexture("atlas", "textures/atlas.png");
   loadOutlineTexture("atlas_outline", "atlas", "circle", "white");
   loadFlashTexture("atlas_flash", "atlas", "white");
-}
-
-async function setupFonts() {
   await loadFont("default", "fonts/pixelmix.ttf", "pixelmix", 4);
   setFont("default");
 }
 
 function setupSprites() {
   loadSprite("player", "atlas", 0, 0, 16, 16);
-
   loadSprite("tree", "atlas", 0, 16, 32, 32);
   loadSprite("tree_outline", "atlas_outline", 0, 16, 32, 32);
-
   loadSprite("rock", "atlas", 32, 32, 16, 16);
   loadSprite("rock_outline", "atlas_outline", 32, 32, 16, 16);
-
   loadSprite("shrub", "atlas", 48, 32, 16, 16);
   loadSprite("shrub_outline", "atlas_outline", 48, 32, 16, 16);
-
   loadSprite("stones", "atlas", 64, 32, 16, 16);
   loadSprite("stones_outline", "atlas_outline", 64, 32, 16, 16);
-
   loadSprite("item_twig", "atlas", 0, 48, 16, 16);
   loadSprite("item_log", "atlas", 16, 48, 16, 16);
   loadSprite("item_pebble", "atlas", 32, 48, 16, 16);
   loadSprite("item_rock", "atlas", 48, 48, 16, 16);
-
   loadSprite("tool_axe", "atlas", 0, 64, 16, 16);
-
   loadSprite("building_crafting_table", "atlas", 0, 80, 16, 16);
-
   loadSprite("box", "atlas", 0, 96, 16, 16);
   loadSprite("box_selection", "atlas", 16, 96, 16, 16);
   loadSprite("locked", "atlas", 32, 96, 16, 16);
@@ -427,15 +409,24 @@ function setupItems() {
   loadItem(ItemId.ROCK, "Rock", "item_rock");
 }
 
-function setupBlueprints() {
-  loadBlueprint(BlueprintId.AXE, "Axe", "tool_axe", [
-    { item: ItemId.TWIG, amount: 10 },
-    { item: ItemId.LOG, amount: 5 },
+function setupTools() {
+  loadTool(BlueprintId.AXE, "Axe", "tool_axe", [
+    { itemId: ItemId.TWIG, amount: 10 },
+    { itemId: ItemId.LOG, amount: 5 },
   ]);
-  loadBlueprint(BlueprintId.CRAFTING_TABLE, "Crafting table", "building_crafting_table", [
-    { item: ItemId.TWIG, amount: 10 },
-    { item: ItemId.PEBBLE, amount: 10 },
-  ]);
+}
+
+function setupBuildings() {
+  loadBuilding(
+    BlueprintId.CRAFTING_TABLE,
+    "Crafting table",
+    "building_crafting_table",
+    [
+      { itemId: ItemId.TWIG, amount: 10 },
+      { itemId: ItemId.PEBBLE, amount: 10 },
+    ],
+    [BlueprintId.AXE, BlueprintId.CRAFTING_TABLE],
+  );
 }
 
 function setupScenes() {
@@ -444,6 +435,10 @@ function setupScenes() {
 }
 
 function update() {
+  if (isInputDown(InputCode.KEY_CTRL_LEFT) && isInputPressed(InputCode.KEY_R)) {
+    document.location.reload();
+  }
+
   const scene = game.scenes[game.sceneId];
 
   for (const id of scene.active) {
@@ -461,16 +456,16 @@ function update() {
 
       case GameStateId.CRAFTING:
         {
-          if (isInputPressed(InputCode.KEY_C) || isInputPressed(InputCode.KEY_ESCAPE)) {
-            game.state = GameStateId.NORMAL;
-          }
           if (isInputPressed(InputCode.KEY_LEFT)) {
             consumeInputPressed(InputCode.KEY_LEFT);
             scene.selectedIndex = Math.max(0, scene.selectedIndex - 1);
           }
           if (isInputPressed(InputCode.KEY_RIGHT)) {
             consumeInputPressed(InputCode.KEY_RIGHT);
-            scene.selectedIndex = Math.min(game.unlockedBlueprints.length - 1, scene.selectedIndex + 1);
+            scene.selectedIndex = Math.min(game.blueprintsPerBuilding[BlueprintId.CRAFTING_TABLE].length - 1, scene.selectedIndex + 1);
+          }
+          if (isInputPressed(InputCode.KEY_C) || isInputPressed(InputCode.KEY_ESCAPE)) {
+            game.state = GameStateId.NORMAL;
           }
         }
         break;
@@ -489,7 +484,7 @@ function update() {
 
   switch (game.state) {
     case GameStateId.CRAFTING:
-      renderCraftingMenu(scene);
+      renderCraftingMenu(scene, game.blueprintsPerBuilding[BlueprintId.CRAFTING_TABLE]);
       break;
   }
 
@@ -502,7 +497,7 @@ function updateState(scene: Scene, e: Entity) {
   const { delta } = getEngineState();
 
   switch (e.state) {
-    case StateId.PLAYER_CONTROL:
+    case State.PLAYER_CONTROL:
       {
         resetVector(e.vel);
         if (isInputDown(InputCode.KEY_LEFT)) {
@@ -527,7 +522,7 @@ function updateState(scene: Scene, e: Entity) {
         const interactable = scene.entities[scene.interactableId];
 
         if (interactable && isInputDown(InputCode.KEY_Z)) {
-          setState(e, StateId.PLAYER_INTERACT);
+          setState(e, State.PLAYER_INTERACT);
         }
 
         if (isInputPressed(InputCode.KEY_C)) {
@@ -538,7 +533,7 @@ function updateState(scene: Scene, e: Entity) {
       }
       break;
 
-    case StateId.PLAYER_INTERACT:
+    case State.PLAYER_INTERACT:
       {
         const completed = tickTimer(e.timer1, PLAYER_INTERACT_TIME);
         const trigger = tickTimer(e.timer2, PLAYER_INTERACT_TIME / 2);
@@ -552,43 +547,43 @@ function updateState(scene: Scene, e: Entity) {
           }
         }
         if (completed) {
-          setState(e, StateId.PLAYER_CONTROL);
+          setState(e, State.PLAYER_CONTROL);
         }
       }
       break;
 
-    case StateId.ITEM_IDLE:
+    case State.ITEM_IDLE:
       {
         tickTimer(e.timer1, Infinity);
         e.offset.y = tween(0, -2, 1000, "easeInOutSine", e.timer1);
         if (tickTimer(e.timer2, ITEM_SEEK_DELAY)) {
-          setState(e, StateId.ITEM_SEEK);
+          setState(e, State.ITEM_SEEK);
         }
       }
       break;
 
-    case StateId.ITEM_SEEK:
+    case State.ITEM_SEEK:
       {
         const player = scene.entities[scene.playerId];
         const completed = tickTimer(e.timer1, ITEM_SEEK_TIME);
         e.pos.x = tween(e.start.x, player.pos.x, ITEM_SEEK_TIME, "easeInCirc", e.timer1);
         e.pos.y = tween(e.start.y, player.pos.y, ITEM_SEEK_TIME, "easeInCirc", e.timer1);
         if (completed) {
-          const item = game.inventory[e.item];
+          const item = game.items[e.itemId];
           item.count = Math.min(item.count + 1, item.max);
           destroyEntity(scene, e.id);
         }
       }
       break;
 
-    case StateId.SHRUB_IDLE:
+    case State.SHRUB_IDLE:
       {
         tickTimer(e.timer1, Infinity);
         e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer1);
       }
       break;
 
-    case StateId.TREE_IDLE:
+    case State.TREE_IDLE:
       {
         tickTimer(e.timer1, Infinity);
         e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer1);
@@ -633,16 +628,16 @@ function checkForCollisions(scene: Scene, e: Entity) {
 
 function dropItems(scene: Scene, e: Entity) {
   switch (e.type) {
-    case TypeId.SHRUB:
+    case Type.SHRUB:
       repeat(random(1, 2), () => createItemTwig(scene, e.pos.x + random(-4, 4), e.pos.y + random(-4, 4)));
       break;
-    case TypeId.STONES:
+    case Type.STONES:
       repeat(random(1, 2), () => createItemPebble(scene, e.pos.x + random(-4, 4), e.pos.y + random(-4, 4)));
       break;
-    case TypeId.TREE:
+    case Type.TREE:
       repeat(random(1, 2), () => createItemLog(scene, e.pos.x + random(-4, 4), e.pos.y + random(-4, 4)));
       break;
-    case TypeId.ROCK:
+    case Type.ROCK:
       repeat(random(1, 2), () => createItemRock(scene, e.pos.x + random(-4, 4), e.pos.y + random(-4, 4)));
       break;
   }
@@ -655,7 +650,7 @@ function updateNearestInteractable(scene: Scene, player: Entity) {
     const target = scene.entities[id];
     const distance = getVectorDistance(player.pos, target.pos);
     if (target.isInteractable && distance < PLAYER_RANGE && distance < smallestDistance) {
-      if (target.tool && !game.unlockedTools.includes(target.tool)) {
+      if (target.toolId && !game.tools.includes(target.toolId)) {
         continue;
       }
       scene.interactableId = id;
@@ -683,7 +678,7 @@ function depthSortEntities(scene: Scene, list: Array<string>) {
   });
 }
 
-function setState(e: Entity, state: StateId) {
+function setState(e: Entity, state: State) {
   if (e.state !== state) {
     e.state = state;
     resetTimer(e.timer1);
@@ -692,7 +687,7 @@ function setState(e: Entity, state: StateId) {
 }
 
 function isBlueprintCraftable(id: BlueprintId) {
-  return game.blueprints[id].recipe.every((recipe) => game.inventory[recipe.item].count >= recipe.amount);
+  return game.blueprints[id].recipe.every((recipe) => game.items[recipe.itemId].count >= recipe.amount);
 }
 
 function renderEntity(e: Entity) {
@@ -723,13 +718,13 @@ function renderEntity(e: Entity) {
   }
 }
 
-function renderCraftingMenu(scene: Scene) {
-  for (let i = 0; i < game.unlockedBlueprints.length; i++) {
-    const id = game.unlockedBlueprints[i];
+function renderCraftingMenu(scene: Scene, blueprints: Array<BlueprintId>) {
+  for (let i = 0; i < blueprints.length; i++) {
+    const id = blueprints[i];
     const blueprint = game.blueprints[id];
-    const isSelected = id === game.unlockedBlueprints[scene.selectedIndex];
+    const isSelected = id === blueprints[scene.selectedIndex];
     const isCraftable = isBlueprintCraftable(id);
-    const x = WIDTH / 2 + i * 16 - game.unlockedBlueprints.length * 8;
+    const x = WIDTH / 2 + i * 16 - blueprints.length * 8;
     const y = HEIGHT - 20;
     resetTransform();
     translateTransform(x, y);
@@ -743,12 +738,12 @@ function renderCraftingMenu(scene: Scene) {
     }
     drawSprite(blueprint.spriteId, -8, -8);
     if (isSelected) {
-      renderRecipeTooltip(blueprint, x, y, isCraftable);
+      renderCraftingRecipe(blueprint, x, y, isCraftable);
     }
   }
 }
 
-function renderRecipeTooltip(blueprint: Blueprint, anchorX: number, anchorY: number, isCraftable: boolean) {
+function renderCraftingRecipe(blueprint: Blueprint, anchorX: number, anchorY: number, isCraftable: boolean) {
   const bg = getSprite("tooltip");
   const x = anchorX;
   const y = anchorY - bg.h - 2;
@@ -770,7 +765,7 @@ function renderRecipeTooltip(blueprint: Blueprint, anchorX: number, anchorY: num
   drawText(message, 0, 0, isError ? "red" : "green");
   translateTransform(0, 8);
   for (const recipe of blueprint.recipe) {
-    const item = game.inventory[recipe.item];
+    const item = game.items[recipe.itemId];
     drawSprite(item.spriteId, -2, -4);
     drawText(item.name, 12, 2);
     drawText(`x${recipe.amount} (${item.count})`, bg.w - 8, 2, "white", "right");
@@ -782,9 +777,9 @@ function renderInventory() {
   resetTransform();
   translateTransform(4, 10);
   drawText("Inventory", 0, 0);
-  translateTransform(0, 4);
-  for (const id of INVENTORY_ITEMS) {
-    const item = game.inventory[id];
+  translateTransform(0, 5);
+  for (const id of game.inventory) {
+    const item = game.items[id];
     drawSprite("box", 0, 0);
     drawSprite(item.spriteId, 0, 0);
     drawText(item.count.toString(), 14, 10, "white", "right");
@@ -794,10 +789,10 @@ function renderInventory() {
 
 function renderToolBelt() {
   resetTransform();
-  translateTransform(4, 30);
+  translateTransform(4, 32);
   drawText("Tools", 0, 0);
-  translateTransform(0, 4);
-  for (const id of game.unlockedTools) {
+  translateTransform(0, 5);
+  for (const id of game.tools) {
     const blueprint = game.blueprints[id];
     drawSprite("box", 0, 0);
     drawSprite(blueprint.spriteId, 0, 0);
