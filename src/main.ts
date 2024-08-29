@@ -10,6 +10,7 @@ import {
   drawSprite,
   drawText,
   getEngineState,
+  getSprite,
   getVectorDistance,
   InputCode,
   isInputDown,
@@ -59,6 +60,9 @@ const PLAYER_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
 const ITEM_SEEK_TIME = 200;
 const ITEM_SEEK_DELAY = 500;
+const INVENTORY_ITEMS = [ItemId.TWIG, ItemId.LOG, ItemId.PEBBLE, ItemId.ROCK];
+const TOOL_BELT_ITEMS = [BlueprintId.AXE];
+const CRAFTING_MENU_ITEMS = [BlueprintId.AXE, BlueprintId.CRAFTING_TABLE];
 
 const enum TypeId {
   NONE = "",
@@ -284,8 +288,8 @@ type Blueprint = {
   isUnlocked: boolean;
 };
 
-function loadBlueprint(id: BlueprintId, name: string, spriteId: string, recipe: BlueprintRecipe) {
-  game.blueprints[id] = { name, spriteId, recipe, isUnlocked: false };
+function loadBlueprint(id: BlueprintId, name: string, spriteId: string, isUnlocked: boolean, recipe: BlueprintRecipe) {
+  game.blueprints[id] = { name, spriteId, recipe, isUnlocked };
 }
 
 const enum SceneId {
@@ -299,7 +303,7 @@ type Scene = {
   destroyed: string[];
   playerId: string;
   interactableId: string;
-  selectedId: string;
+  selectedIndex: number;
 };
 
 function createScene(id: SceneId) {
@@ -310,7 +314,7 @@ function createScene(id: SceneId) {
     destroyed: [],
     playerId: "",
     interactableId: "",
-    selectedId: "",
+    selectedIndex: 0,
   };
   game.scenes[id] = scene;
   return scene;
@@ -399,14 +403,19 @@ function setupSprites() {
   loadSprite("stones", "atlas", 64, 32, 16, 16);
   loadSprite("stones_outline", "atlas_outline", 64, 32, 16, 16);
 
-  loadSprite("item_twig", "atlas", 0, 48, 8, 8);
-  loadSprite("item_log", "atlas", 16, 48, 8, 8);
-  loadSprite("item_pebble", "atlas", 32, 48, 8, 8);
-  loadSprite("item_rock", "atlas", 48, 48, 8, 8);
+  loadSprite("item_twig", "atlas", 0, 48, 16, 16);
+  loadSprite("item_log", "atlas", 16, 48, 16, 16);
+  loadSprite("item_pebble", "atlas", 32, 48, 16, 16);
+  loadSprite("item_rock", "atlas", 48, 48, 16, 16);
 
-  loadSprite("tool_axe", "atlas", 0, 64, 8, 8);
+  loadSprite("tool_axe", "atlas", 0, 64, 16, 16);
 
   loadSprite("building_crafting_table", "atlas", 0, 80, 16, 16);
+
+  loadSprite("box", "atlas", 0, 96, 16, 16);
+  loadSprite("box_selection", "atlas", 16, 96, 16, 16);
+  loadSprite("tooltip", "atlas", 0, 112, 80, 64);
+  loadSprite("tooltip_outline", "atlas_outline", 0, 112, 80, 64);
 }
 
 function setupItems() {
@@ -417,16 +426,14 @@ function setupItems() {
 }
 
 function setupBlueprints() {
-  loadBlueprint(BlueprintId.AXE, "Axe", "tool_axe", [
+  loadBlueprint(BlueprintId.AXE, "Axe", "tool_axe", true, [
     { item: ItemId.TWIG, amount: 10 },
     { item: ItemId.LOG, amount: 5 },
   ]);
-  loadBlueprint(BlueprintId.CRAFTING_TABLE, "Crafting table", "building_crafting_table", [
+  loadBlueprint(BlueprintId.CRAFTING_TABLE, "Crafting table", "building_crafting_table", true, [
     { item: ItemId.TWIG, amount: 10 },
     { item: ItemId.PEBBLE, amount: 10 },
   ]);
-
-  game.blueprints[BlueprintId.CRAFTING_TABLE].isUnlocked = true;
 }
 
 function setupScenes() {
@@ -454,6 +461,14 @@ function update() {
         {
           if (isInputPressed(InputCode.KEY_C) || isInputPressed(InputCode.KEY_ESCAPE)) {
             game.state = GameStateId.NORMAL;
+          }
+          if (isInputPressed(InputCode.KEY_LEFT)) {
+            consumeInputPressed(InputCode.KEY_LEFT);
+            scene.selectedIndex = Math.max(0, scene.selectedIndex - 1);
+          }
+          if (isInputPressed(InputCode.KEY_RIGHT)) {
+            consumeInputPressed(InputCode.KEY_RIGHT);
+            scene.selectedIndex = Math.min(CRAFTING_MENU_ITEMS.length - 1, scene.selectedIndex + 1);
           }
         }
         break;
@@ -516,7 +531,7 @@ function updateState(scene: Scene, e: Entity) {
         if (isInputPressed(InputCode.KEY_C)) {
           consumeInputPressed(InputCode.KEY_C);
           game.state = GameStateId.CRAFTING;
-          scene.selectedId = BlueprintId.CRAFTING_TABLE;
+          scene.selectedIndex = 0;
         }
       }
       break;
@@ -693,6 +708,10 @@ function setState(e: Entity, state: StateId) {
   }
 }
 
+function isBlueprintCraftable(id: BlueprintId) {
+  return game.blueprints[id].recipe.every((recipe) => game.inventory[recipe.item].count >= recipe.amount);
+}
+
 function renderEntity(e: Entity) {
   if (e.isVisible) {
     resetTransform();
@@ -722,32 +741,34 @@ function renderEntity(e: Entity) {
 }
 
 function renderCraftingMenu(scene: Scene) {
-  renderCraftingMenuItem(scene, BlueprintId.CRAFTING_TABLE, 4, HEIGHT - 40);
+  for (let i = 0; i < CRAFTING_MENU_ITEMS.length; i++) {
+    const id = CRAFTING_MENU_ITEMS[i];
+    const blueprint = game.blueprints[id];
+    const isSelected = id === CRAFTING_MENU_ITEMS[scene.selectedIndex];
+    const isCraftable = isBlueprintCraftable(id);
+    const x = WIDTH / 2 + i * 16 - CRAFTING_MENU_ITEMS.length * 8;
+    const y = HEIGHT - 20;
+    resetTransform();
+    translateTransform(x, y);
+    drawSprite("box", 0, 0);
+    if (isSelected) {
+      drawSprite("box_selection", 0, 0);
+    }
+    translateTransform(8, 8);
+    if (isSelected) {
+      scaleTransform(1.25, 1.25);
+    }
+    drawSprite(blueprint.spriteId, -8, -8);
+    if (isSelected) {
+      renderRecipeTooltip(blueprint, x, y, isCraftable);
+    }
+  }
 }
 
-function renderCraftingMenuItem(scene: Scene, id: BlueprintId, x: number, y: number) {
-  const blueprint = game.blueprints[id];
-  const isSelected = id === scene.selectedId;
-  const isCraftable = blueprint.recipe.every((recipe) => game.inventory[recipe.item].count >= recipe.amount);
-  resetTransform();
-  translateTransform(x, y);
-  drawRect(0, 0, 16, 16, blueprint.isUnlocked && isCraftable ? "black" : "red", true);
-  if (isSelected) {
-    drawRect(0, 0, 16, 16);
-  }
-  translateTransform(8, 15);
-  if (isSelected) {
-    scaleTransform(1.25, 1.25);
-  }
-  drawSprite(blueprint.spriteId, -8, -15);
-  renderRecipe(blueprint, x, y, isSelected, isCraftable);
-}
-
-function renderRecipe(blueprint: Blueprint, anchorX: number, anchorY: number, isSelected: boolean, isCraftable: boolean) {
-  const w = 100;
-  const h = 10 * blueprint.recipe.length + 16 + 4;
+function renderRecipeTooltip(blueprint: Blueprint, anchorX: number, anchorY: number, isCraftable: boolean) {
+  const bg = getSprite("tooltip");
   const x = anchorX;
-  const y = anchorY - h;
+  const y = anchorY - bg.h - 2;
   let message = "Craftable";
   let isError = false;
   if (!isCraftable) {
@@ -759,49 +780,53 @@ function renderRecipe(blueprint: Blueprint, anchorX: number, anchorY: number, is
     isError = true;
   }
   resetTransform();
-  translateTransform(x, y);
-  drawRect(0, 0, w, h, "black", true);
-  drawRect(0, 0, w, h);
-  drawText(blueprint.name, 2, 3);
+  translateTransform(x - bg.w / 2, y);
+  drawSprite("tooltip", 0, 0);
+  drawSprite("tooltip_outline", 0, 0);
+  translateTransform(4, 4);
+  scaleTransform(1.25, 1.25);
+  drawText(blueprint.name, 0, 0);
+  scaleTransform(0.8, 0.8);
   translateTransform(0, 8);
-  drawText(message, 2, 2, isError ? "red" : "green");
+  drawText(message, 0, 0, isError ? "red" : "green");
   translateTransform(0, 8);
-  if (isSelected) {
-    for (const recipe of blueprint.recipe) {
-      const item = game.inventory[recipe.item];
-      drawSprite(item.spriteId, 2, 0);
-      drawText(`${item.name} x${recipe.amount}`, 14, 2);
-      translateTransform(0, 10);
-    }
+  for (const recipe of blueprint.recipe) {
+    const item = game.inventory[recipe.item];
+    drawSprite(item.spriteId, -2, -4);
+    drawText(`${item.name} x${recipe.amount}`, 12, 2);
+    translateTransform(0, 10);
   }
 }
 
 function renderInventory() {
-  renderInventoryItem(ItemId.TWIG, 4, 4);
-  renderInventoryItem(ItemId.LOG, 14, 4);
-  renderInventoryItem(ItemId.PEBBLE, 24, 4);
-  renderInventoryItem(ItemId.ROCK, 34, 4);
-}
-
-function renderInventoryItem(id: ItemId, x: number, y: number) {
-  const item = game.inventory[id];
   resetTransform();
-  translateTransform(x, y);
-  drawRect(0, 0, 10, 10, "black", true);
-  drawSprite(item.spriteId, 0, 0);
-  drawText(item.count.toString(), 10, 5, "white", "right");
+  translateTransform(4, 10);
+  scaleTransform(0.8, 0.8);
+  drawText("Inventory", 0, 0);
+  scaleTransform(1.25, 1.25);
+  translateTransform(0, 4);
+  for (const id of INVENTORY_ITEMS) {
+    const item = game.inventory[id];
+    drawSprite("box", 0, 0);
+    drawSprite(item.spriteId, 0, 0);
+    drawText(item.count.toString(), 14, 10, "white", "right");
+    translateTransform(16, 0);
+  }
 }
 
 function renderToolBelt() {
-  renderBlueprint(BlueprintId.AXE, 4, 14);
-}
-
-function renderBlueprint(id: BlueprintId, x: number, y: number) {
-  const blueprint = game.blueprints[id];
   resetTransform();
-  translateTransform(x, y);
-  drawRect(0, 0, 10, 10, blueprint.isUnlocked ? "black" : "red", true);
-  drawSprite(blueprint.spriteId, 0, 0);
+  translateTransform(4, 30);
+  scaleTransform(0.8, 0.8);
+  drawText("Tools", 0, 0);
+  scaleTransform(1.25, 1.25);
+  translateTransform(0, 4);
+  for (const id of TOOL_BELT_ITEMS) {
+    const blueprint = game.blueprints[id];
+    drawSprite("box", 0, 0);
+    drawSprite(blueprint.spriteId, 0, 0);
+    translateTransform(16, 0);
+  }
 }
 
 function renderMetrics() {
