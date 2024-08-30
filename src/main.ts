@@ -2,6 +2,7 @@ import {
   addVector,
   addVectorScaled,
   applyCameraTransform,
+  AssetsManifest,
   consumeInputPressed,
   copyVector,
   doesRectangleContain,
@@ -15,11 +16,7 @@ import {
   isInputDown,
   isInputPressed,
   isRectangleValid,
-  loadFlashTexture,
-  loadFont,
-  loadOutlineTexture,
-  loadSprite,
-  loadTexture,
+  loadAssets,
   normalizeVector,
   pick,
   random,
@@ -36,7 +33,6 @@ import {
   scaleVector,
   setAlpha,
   setCameraPosition,
-  setFont,
   tickTimer,
   timer,
   Timer,
@@ -59,6 +55,54 @@ const PLAYER_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
 const ITEM_SEEK_TIME = 200;
 const ITEM_SEEK_DELAY = 500;
+
+const ASSETS: AssetsManifest = {
+  textures: {
+    atlas: {
+      url: "textures/atlas.png",
+      sprites: {
+        player: [0, 0, 16, 16],
+        tree: [0, 16, 32, 32],
+        rock: [32, 32, 16, 16],
+        shrub: [48, 32, 16, 16],
+        stones: [64, 32, 16, 16],
+        item_twig: [0, 48, 16, 16],
+        item_log: [16, 48, 16, 16],
+        item_pebble: [32, 48, 16, 16],
+        item_rock: [48, 48, 16, 16],
+        tool_axe: [0, 64, 16, 16],
+        building_crafting_table: [0, 80, 16, 16],
+        box: [0, 96, 16, 16],
+        box_selection: [16, 96, 16, 16],
+        locked: [32, 96, 16, 16],
+        tooltip: [0, 112, 80, 64],
+      },
+    },
+  },
+  outlineTextures: {
+    atlas_outline: {
+      url: "textures/atlas_outline.png",
+      mode: "circle",
+      color: "white",
+      sprites: {
+        tree_outline: [0, 16, 32, 32],
+        rock_outline: [32, 32, 16, 16],
+        shrub_outline: [48, 32, 16, 16],
+        stones_outline: [64, 32, 16, 16],
+        tooltip_outline: [0, 112, 80, 64],
+      },
+    },
+  },
+  flashTextures: {},
+  fonts: {
+    default: {
+      url: "fonts/pixelmix.ttf",
+      family: "pixelmix",
+      size: 4,
+    },
+  },
+  sounds: {},
+};
 
 const enum Type {
   NONE = "",
@@ -363,43 +407,11 @@ const game: Game = {
 };
 
 async function setup() {
-  await setupResources();
-  setupSprites();
+  await loadAssets(ASSETS);
   setupItems();
   setupTools();
   setupBuildings();
   setupScenes();
-}
-
-async function setupResources() {
-  await loadTexture("atlas", "textures/atlas.png");
-  loadOutlineTexture("atlas_outline", "atlas", "circle", "white");
-  loadFlashTexture("atlas_flash", "atlas", "white");
-  await loadFont("default", "fonts/pixelmix.ttf", "pixelmix", 4);
-  setFont("default");
-}
-
-function setupSprites() {
-  loadSprite("player", "atlas", 0, 0, 16, 16);
-  loadSprite("tree", "atlas", 0, 16, 32, 32);
-  loadSprite("tree_outline", "atlas_outline", 0, 16, 32, 32);
-  loadSprite("rock", "atlas", 32, 32, 16, 16);
-  loadSprite("rock_outline", "atlas_outline", 32, 32, 16, 16);
-  loadSprite("shrub", "atlas", 48, 32, 16, 16);
-  loadSprite("shrub_outline", "atlas_outline", 48, 32, 16, 16);
-  loadSprite("stones", "atlas", 64, 32, 16, 16);
-  loadSprite("stones_outline", "atlas_outline", 64, 32, 16, 16);
-  loadSprite("item_twig", "atlas", 0, 48, 16, 16);
-  loadSprite("item_log", "atlas", 16, 48, 16, 16);
-  loadSprite("item_pebble", "atlas", 32, 48, 16, 16);
-  loadSprite("item_rock", "atlas", 48, 48, 16, 16);
-  loadSprite("tool_axe", "atlas", 0, 64, 16, 16);
-  loadSprite("building_crafting_table", "atlas", 0, 80, 16, 16);
-  loadSprite("box", "atlas", 0, 96, 16, 16);
-  loadSprite("box_selection", "atlas", 16, 96, 16, 16);
-  loadSprite("locked", "atlas", 32, 96, 16, 16);
-  loadSprite("tooltip", "atlas", 0, 112, 80, 64);
-  loadSprite("tooltip_outline", "atlas_outline", 0, 112, 80, 64);
 }
 
 function setupItems() {
