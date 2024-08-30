@@ -81,7 +81,7 @@ const ASSETS: AssetsManifest = {
   },
   outlineTextures: {
     atlas_outline: {
-      url: "textures/atlas_outline.png",
+      url: "textures/atlas.png",
       mode: "circle",
       color: "white",
       sprites: {
