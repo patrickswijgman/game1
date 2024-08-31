@@ -46,9 +46,6 @@ import {
   writeIntersectionBetweenRectangles,
 } from "ridder";
 
-type Nil = "";
-const nil: Nil = "";
-
 const DEBUG = false;
 const WIDTH = 320;
 const HEIGHT = 180;
@@ -210,13 +207,13 @@ const enum Interact {
 
 type Entity = {
   id: string;
-  type: Type | Nil;
-  state: State | Nil;
-  itemId: ItemId | Nil;
-  toolId: ToolId | Nil;
-  interactType: Interact | Nil;
-  interactToGameStateId: GameStateId | Nil;
-  buildingId: BuildingId | Nil;
+  type: string;
+  state: string;
+  itemId: string;
+  toolId: string;
+  interactType: string;
+  interactToGameStateId: string;
+  buildingId: string;
   pos: Vector;
   vel: Vector;
   start: Vector;
@@ -242,13 +239,13 @@ type Entity = {
 function createEntity(scene: Scene, x: number, y: number) {
   const e: Entity = {
     id: uuid(),
-    type: nil,
-    state: nil,
-    itemId: nil,
-    toolId: nil,
-    buildingId: nil,
-    interactType: nil,
-    interactToGameStateId: nil,
+    type: "",
+    state: "",
+    itemId: "",
+    toolId: "",
+    buildingId: "",
+    interactType: "",
+    interactToGameStateId: "",
     pos: vec(x, y),
     vel: vec(),
     start: vec(x, y),
@@ -257,7 +254,7 @@ function createEntity(scene: Scene, x: number, y: number) {
     body: rect(),
     bodyOffset: vec(),
     bodyIntersection: vec(),
-    spriteId: nil,
+    spriteId: "",
     pivot: vec(),
     offset: vec(),
     angle: 0,
@@ -445,7 +442,7 @@ type Game = {
   inventory: Record<ItemId, number>;
   tools: Record<ToolId, boolean>;
   buildings: Record<BuildingId, boolean>;
-  state: GameStateId | Nil;
+  state: string;
 };
 
 const game: Game = {
@@ -463,7 +460,7 @@ const game: Game = {
   buildings: {
     [BuildingId.CRAFTING_TABLE]: false,
   },
-  state: nil,
+  state: "",
 };
 
 async function setup() {
