@@ -143,7 +143,6 @@ const enum ToolId {
 
 const enum BuildingId {
   CRAFTING_TABLE = "crafting_table",
-  CRAFTING_TABLE_PLACEHOLDER = "crafting_table_placeholder",
 }
 
 type BlueprintId = ToolId | BuildingId;
@@ -171,20 +170,20 @@ const BLUEPRINTS: Record<BlueprintId, Blueprint> = {
       { itemId: ItemId.PEBBLE, amount: 10 },
     ],
   },
-  [BuildingId.CRAFTING_TABLE_PLACEHOLDER]: {
-    name: "Crafting Table (placeholder)",
-    spriteId: "building_crafting_table",
-    recipe: [],
-  },
 };
 
 const BLUEPRINTS_PER_BUILDING: Record<BuildingId, Array<BlueprintId>> = {
   [BuildingId.CRAFTING_TABLE]: [ToolId.AXE],
-  [BuildingId.CRAFTING_TABLE_PLACEHOLDER]: [BuildingId.CRAFTING_TABLE],
 };
 
-function isBlueprintCraftable(id: BlueprintId) {
+function isBlueprintCraftable(id: string) {
   return BLUEPRINTS[id].recipe.every((item) => game.inventory[item.itemId] >= item.amount);
+}
+
+function spendBlueprintRecipe(id: string) {
+  for (const recipe of BLUEPRINTS[id].recipe) {
+    game.inventory[recipe.itemId] -= recipe.amount;
+  }
 }
 
 const enum Type {
@@ -364,17 +363,6 @@ function createItem(scene: Scene, x: number, y: number, itemId: ItemId, spriteId
   e.pivot.y = 8;
 }
 
-function createCraftingTablePlaceholder(scene: Scene, x: number, y: number) {
-  const e = createEntity(scene, x, y);
-  e.type = Type.BUILDING;
-  e.spriteId = "building_crafting_table";
-  e.pivot.x = 8;
-  e.pivot.y = 10;
-  e.alpha = 0.5;
-  e.buildingId = BuildingId.CRAFTING_TABLE_PLACEHOLDER;
-  e.interactType = InteractType.BUILDING;
-}
-
 function createCraftingTable(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
   e.type = Type.BUILDING;
@@ -418,7 +406,7 @@ type Scene = {
   interactableId: string;
   selectedIndex: number;
   selectedBuildingId: string;
-  selectedBuildingEntityId: string;
+  selectedBuildingRecipes: Array<string>;
 };
 
 function createScene(id: SceneId) {
@@ -431,7 +419,7 @@ function createScene(id: SceneId) {
     interactableId: "",
     selectedIndex: 0,
     selectedBuildingId: "",
-    selectedBuildingEntityId: "",
+    selectedBuildingRecipes: [],
   };
   game.scenes[id] = scene;
   return scene;
@@ -440,7 +428,7 @@ function createScene(id: SceneId) {
 function loadWorldScene() {
   const scene = createScene(SceneId.WORLD);
   createPlayer(scene, 160, 90);
-  createCraftingTablePlaceholder(scene, 140, 90);
+  createCraftingTable(scene, 140, 90);
   setCameraPosition(160, 90);
   for (let x = 0; x < WIDTH; x += TILE_SIZE) {
     for (let y = 0; y < HEIGHT; y += TILE_SIZE) {
@@ -478,7 +466,6 @@ const game: Game = {
   },
   buildings: {
     [BuildingId.CRAFTING_TABLE]: false,
-    [BuildingId.CRAFTING_TABLE_PLACEHOLDER]: false,
   },
   state: "",
 };
@@ -514,27 +501,30 @@ function update() {
 
       case GameStateId.CRAFTING_MENU:
         {
+          const blueprintId = scene.selectedBuildingRecipes[scene.selectedIndex];
           if (isInputPressed(InputCode.KEY_LEFT)) {
             consumeInputPressed(InputCode.KEY_LEFT);
             scene.selectedIndex = Math.max(0, scene.selectedIndex - 1);
           }
           if (isInputPressed(InputCode.KEY_RIGHT)) {
             consumeInputPressed(InputCode.KEY_RIGHT);
-            scene.selectedIndex = Math.min(BLUEPRINTS_PER_BUILDING[scene.selectedBuildingId].length - 1, scene.selectedIndex + 1);
+            scene.selectedIndex = Math.min(scene.selectedBuildingRecipes.length - 1, scene.selectedIndex + 1);
           }
           if (isInputPressed(InputCode.KEY_ESCAPE)) {
             game.state = GameStateId.NORMAL;
           }
-          if (isInputPressed(InputCode.KEY_Z) && isBlueprintCraftable(BLUEPRINTS_PER_BUILDING[scene.selectedBuildingId][scene.selectedIndex])) {
-            const building = scene.entities[scene.selectedBuildingEntityId];
-            game.state = GameStateId.NORMAL;
-            destroyEntity(scene, scene.selectedBuildingEntityId);
-            switch (building.buildingId) {
-              case BuildingId.CRAFTING_TABLE_PLACEHOLDER:
-                createCraftingTable(scene, building.pos.x, building.pos.y);
-                game.buildings[BuildingId.CRAFTING_TABLE] = true;
-                break;
+          if (isInputPressed(InputCode.KEY_Z) && isBlueprintCraftable(blueprintId)) {
+            if (blueprintId in game.tools) {
+              game.tools[blueprintId] = true;
             }
+            if (blueprintId in game.buildings) {
+              game.buildings[blueprintId] = true;
+            }
+            if (blueprintId in game.inventory) {
+              game.inventory[blueprintId] += 1;
+            }
+            spendBlueprintRecipe(blueprintId);
+            game.state = GameStateId.NORMAL;
           }
         }
         break;
@@ -553,7 +543,7 @@ function update() {
 
   switch (game.state) {
     case GameStateId.CRAFTING_MENU:
-      renderCraftingMenu(scene, BLUEPRINTS_PER_BUILDING[scene.selectedBuildingId]);
+      renderCraftingMenu(scene, scene.selectedBuildingRecipes);
       break;
   }
 
@@ -627,7 +617,12 @@ function updateState(scene: Scene, e: Entity) {
         const interactable = scene.entities[scene.interactableId];
         scene.selectedIndex = 0;
         scene.selectedBuildingId = interactable.buildingId;
-        scene.selectedBuildingEntityId = interactable.id;
+        scene.selectedBuildingRecipes.length = 0;
+        if (game.buildings[interactable.buildingId]) {
+          scene.selectedBuildingRecipes.push(...BLUEPRINTS_PER_BUILDING[interactable.buildingId]);
+        } else {
+          scene.selectedBuildingRecipes.push(interactable.buildingId);
+        }
         game.state = GameStateId.CRAFTING_MENU;
         setState(e, State.PLAYER_CONTROL);
       }
@@ -778,7 +773,8 @@ function renderEntity(scene: Scene, e: Entity) {
       scaleTransform(-1, 1);
     }
     if (e.spriteId) {
-      setAlpha(e.alpha);
+      const alpha = e.interactType === InteractType.BUILDING && !game.buildings[e.buildingId] ? 0.5 : e.alpha;
+      setAlpha(alpha);
       drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
       setAlpha(1);
     }
@@ -794,7 +790,7 @@ function renderEntity(scene: Scene, e: Entity) {
   }
 }
 
-function renderCraftingMenu(scene: Scene, blueprints: Array<BlueprintId>) {
+function renderCraftingMenu(scene: Scene, blueprints: Array<string>) {
   for (let i = 0; i < blueprints.length; i++) {
     const id = blueprints[i];
     const blueprint = BLUEPRINTS[id];
