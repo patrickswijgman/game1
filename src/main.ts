@@ -33,6 +33,7 @@ import {
   scaleVector,
   setAlpha,
   setCameraPosition,
+  setFont,
   tickTimer,
   timer,
   Timer,
@@ -46,7 +47,6 @@ import {
 } from "ridder";
 
 const DEBUG = false;
-
 const WIDTH = 320;
 const HEIGHT = 180;
 const TILE_SIZE = 20;
@@ -148,6 +148,64 @@ const ITEMS: Record<ItemId, Item> = {
   },
 };
 
+const enum BlueprintId {
+  NONE = "",
+  AXE = "axe",
+  PICKAXE = "pickaxe",
+  CRAFTING_TABLE = "crafting_table",
+}
+
+type BlueprintRecipe = Array<{
+  itemId: ItemId;
+  amount: number;
+}>;
+
+type Blueprint = {
+  name: string;
+  spriteId: string;
+  recipe: BlueprintRecipe;
+};
+
+const BLUEPRINTS = {
+  [BlueprintId.NONE]: {
+    name: "",
+    spriteId: "",
+    recipe: [],
+  },
+  [BlueprintId.AXE]: {
+    name: "Axe",
+    spriteId: "tool_axe",
+    recipe: [
+      { itemId: ItemId.TWIG, amount: 10 },
+      { itemId: ItemId.PEBBLE, amount: 5 },
+    ],
+  },
+  [BlueprintId.PICKAXE]: {
+    name: "Pickaxe",
+    spriteId: "tool_pickaxe",
+    recipe: [
+      { itemId: ItemId.PEBBLE, amount: 10 },
+      { itemId: ItemId.LOG, amount: 5 },
+    ],
+  },
+  [BlueprintId.CRAFTING_TABLE]: {
+    name: "Crafting Table",
+    spriteId: "building_crafting_table",
+    recipe: [
+      { itemId: ItemId.TWIG, amount: 10 },
+      { itemId: ItemId.PEBBLE, amount: 10 },
+    ],
+  },
+};
+
+const BLUEPRINTS_PER_BUILDING: Record<string, Array<BlueprintId>> = {
+  [BlueprintId.CRAFTING_TABLE]: [BlueprintId.AXE],
+};
+
+function isBlueprintCraftable(id: BlueprintId) {
+  return BLUEPRINTS[id].recipe.every((recipe) => ITEMS[recipe.itemId].count >= recipe.amount);
+}
+
 const enum Type {
   NONE = "",
   PLAYER = "player",
@@ -195,7 +253,6 @@ type Entity = {
   isVisible: boolean;
   isFlipped: boolean;
   isInteractable: boolean;
-  isOutlineVisible: boolean;
 };
 
 function createEntity(scene: Scene, x: number, y: number) {
@@ -226,7 +283,6 @@ function createEntity(scene: Scene, x: number, y: number) {
     isVisible: true,
     isFlipped: false,
     isInteractable: false,
-    isOutlineVisible: false,
   };
   scene.entities[e.id] = e;
   scene.active.push(e.id);
@@ -336,33 +392,6 @@ function createItemRock(scene: Scene, x: number, y: number) {
   return createItem(scene, x, y, ItemId.ROCK, "item_rock");
 }
 
-const enum BlueprintId {
-  NONE = "",
-  AXE = "axe",
-  PICKAXE = "pickaxe",
-  CRAFTING_TABLE = "crafting_table",
-}
-
-type BlueprintRecipe = Array<{
-  itemId: ItemId;
-  amount: number;
-}>;
-
-type Blueprint = {
-  name: string;
-  spriteId: string;
-  recipe: BlueprintRecipe;
-};
-
-function loadTool(id: BlueprintId, name: string, spriteId: string, recipe: BlueprintRecipe) {
-  game.blueprints[id] = { name, spriteId, recipe };
-}
-
-function loadBuilding(id: BlueprintId, name: string, spriteId: string, recipe: BlueprintRecipe, blueprints: Array<BlueprintId>) {
-  game.blueprints[id] = { name, spriteId, recipe };
-  game.blueprintsPerBuilding[id] = blueprints;
-}
-
 const enum SceneId {
   WORLD = "world",
 }
@@ -413,8 +442,6 @@ type Game = {
   scenes: Record<string, Scene>;
   sceneId: string;
   inventory: Array<ItemId>;
-  blueprints: Record<string, Blueprint>;
-  blueprintsPerBuilding: Record<string, Array<BlueprintId>>;
   tools: Array<BlueprintId>;
   state: GameStateId;
 };
@@ -423,41 +450,16 @@ const game: Game = {
   scenes: {},
   sceneId: "",
   inventory: [ItemId.TWIG, ItemId.PEBBLE],
-  blueprints: {},
-  blueprintsPerBuilding: {},
   tools: [],
   state: GameStateId.NORMAL,
 };
 
 async function setup() {
   await loadAssets(ASSETS);
-  setupTools();
-  setupBuildings();
-  setupScenes();
-}
+  setFont("default");
 
-function setupTools() {
-  loadTool(BlueprintId.AXE, "Axe", "tool_axe", [
-    { itemId: ItemId.TWIG, amount: 10 },
-    { itemId: ItemId.LOG, amount: 5 },
-  ]);
-}
-
-function setupBuildings() {
-  loadBuilding(
-    BlueprintId.CRAFTING_TABLE,
-    "Crafting table",
-    "building_crafting_table",
-    [
-      { itemId: ItemId.TWIG, amount: 10 },
-      { itemId: ItemId.PEBBLE, amount: 10 },
-    ],
-    [BlueprintId.AXE, BlueprintId.CRAFTING_TABLE],
-  );
-}
-
-function setupScenes() {
   loadWorldScene();
+
   game.sceneId = SceneId.WORLD;
 }
 
@@ -477,7 +479,6 @@ function update() {
           updateState(scene, e);
           updateHitbox(e);
           checkForCollisions(scene, e);
-          e.isOutlineVisible = id === scene.interactableId;
         }
         break;
 
@@ -489,7 +490,7 @@ function update() {
           }
           if (isInputPressed(InputCode.KEY_RIGHT)) {
             consumeInputPressed(InputCode.KEY_RIGHT);
-            scene.selectedIndex = Math.min(game.blueprintsPerBuilding[BlueprintId.CRAFTING_TABLE].length - 1, scene.selectedIndex + 1);
+            scene.selectedIndex = Math.min(BLUEPRINTS_PER_BUILDING[BlueprintId.CRAFTING_TABLE].length - 1, scene.selectedIndex + 1);
           }
           if (isInputPressed(InputCode.KEY_C) || isInputPressed(InputCode.KEY_ESCAPE)) {
             game.state = GameStateId.NORMAL;
@@ -506,12 +507,12 @@ function update() {
 
   for (const id of scene.render) {
     const e = scene.entities[id];
-    renderEntity(e);
+    renderEntity(scene, e);
   }
 
   switch (game.state) {
     case GameStateId.CRAFTING:
-      renderCraftingMenu(scene, game.blueprintsPerBuilding[BlueprintId.CRAFTING_TABLE]);
+      renderCraftingMenu(scene, BLUEPRINTS_PER_BUILDING[BlueprintId.CRAFTING_TABLE]);
       break;
   }
 
@@ -713,11 +714,7 @@ function setState(e: Entity, state: State) {
   }
 }
 
-function isBlueprintCraftable(id: BlueprintId) {
-  return game.blueprints[id].recipe.every((recipe) => ITEMS[recipe.itemId].count >= recipe.amount);
-}
-
-function renderEntity(e: Entity) {
+function renderEntity(scene: Scene, e: Entity) {
   if (e.isVisible) {
     resetTransform();
     applyCameraTransform();
@@ -733,7 +730,7 @@ function renderEntity(e: Entity) {
       drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
       setAlpha(1);
     }
-    if (e.isOutlineVisible) {
+    if (e.id === scene.interactableId) {
       drawSprite(`${e.spriteId}_outline`, -e.pivot.x, -e.pivot.y);
     }
     if (DEBUG) {
@@ -748,7 +745,7 @@ function renderEntity(e: Entity) {
 function renderCraftingMenu(scene: Scene, blueprints: Array<BlueprintId>) {
   for (let i = 0; i < blueprints.length; i++) {
     const id = blueprints[i];
-    const blueprint = game.blueprints[id];
+    const blueprint = BLUEPRINTS[id];
     const isSelected = id === blueprints[scene.selectedIndex];
     const isCraftable = isBlueprintCraftable(id);
     const x = WIDTH / 2 + i * 16 - blueprints.length * 8;
@@ -820,7 +817,7 @@ function renderToolBelt() {
   drawText("Tools", 0, 0);
   translateTransform(0, 5);
   for (const id of game.tools) {
-    const blueprint = game.blueprints[id];
+    const blueprint = BLUEPRINTS[id];
     drawSprite("box", 0, 0);
     drawSprite(blueprint.spriteId, 0, 0);
     translateTransform(16, 0);
