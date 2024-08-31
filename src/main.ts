@@ -118,8 +118,6 @@ type Item = {
   count: number;
 };
 
-const MAX_ITEM_COUNT = 99;
-
 const ITEMS: Record<ItemId, Item> = {
   [ItemId.NONE]: {
     name: "",
@@ -148,6 +146,8 @@ const ITEMS: Record<ItemId, Item> = {
   },
 };
 
+const MAX_ITEM_COUNT = 99;
+
 const enum BlueprintId {
   NONE = "",
   AXE = "axe",
@@ -155,18 +155,13 @@ const enum BlueprintId {
   CRAFTING_TABLE = "crafting_table",
 }
 
-type BlueprintRecipe = Array<{
-  itemId: ItemId;
-  amount: number;
-}>;
-
 type Blueprint = {
   name: string;
   spriteId: string;
-  recipe: BlueprintRecipe;
+  recipe: Array<{ itemId: ItemId; amount: number }>;
 };
 
-const BLUEPRINTS = {
+const BLUEPRINTS: Record<BlueprintId, Blueprint> = {
   [BlueprintId.NONE]: {
     name: "",
     spriteId: "",
@@ -203,7 +198,7 @@ const BLUEPRINTS_PER_BUILDING: Record<string, Array<BlueprintId>> = {
 };
 
 function isBlueprintCraftable(id: BlueprintId) {
-  return BLUEPRINTS[id].recipe.every((recipe) => ITEMS[recipe.itemId].count >= recipe.amount);
+  return BLUEPRINTS[id].recipe.every((item) => ITEMS[item.itemId].count >= item.amount);
 }
 
 const enum Type {
