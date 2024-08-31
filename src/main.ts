@@ -143,11 +143,8 @@ const enum ToolId {
 
 const enum BuildingId {
   CRAFTING_TABLE = "crafting_table",
+  CRAFTING_TABLE_PLACEHOLDER = "crafting_table_placeholder",
 }
-
-const BUILDINGS: Record<BuildingId, Array<ToolId>> = {
-  [BuildingId.CRAFTING_TABLE]: [ToolId.AXE],
-};
 
 type BlueprintId = ToolId | BuildingId;
 
@@ -174,6 +171,16 @@ const BLUEPRINTS: Record<BlueprintId, Blueprint> = {
       { itemId: ItemId.PEBBLE, amount: 10 },
     ],
   },
+  [BuildingId.CRAFTING_TABLE_PLACEHOLDER]: {
+    name: "Crafting Table (placeholder)",
+    spriteId: "building_crafting_table",
+    recipe: [],
+  },
+};
+
+const BLUEPRINTS_PER_BUILDING: Record<BuildingId, Array<BlueprintId>> = {
+  [BuildingId.CRAFTING_TABLE]: [ToolId.AXE],
+  [BuildingId.CRAFTING_TABLE_PLACEHOLDER]: [BuildingId.CRAFTING_TABLE],
 };
 
 function isBlueprintCraftable(id: BlueprintId) {
@@ -200,7 +207,7 @@ const enum State {
   TREE_IDLE = "tree_idle",
 }
 
-const enum Interact {
+const enum InteractType {
   RESOURCE = "resource",
   BUILDING = "building",
 }
@@ -212,7 +219,6 @@ type Entity = {
   itemId: string;
   toolId: string;
   interactType: string;
-  interactToGameStateId: string;
   buildingId: string;
   pos: Vector;
   vel: Vector;
@@ -245,7 +251,6 @@ function createEntity(scene: Scene, x: number, y: number) {
     toolId: "",
     buildingId: "",
     interactType: "",
-    interactToGameStateId: "",
     pos: vec(x, y),
     vel: vec(),
     start: vec(x, y),
@@ -301,7 +306,7 @@ function createShrub(scene: Scene, x: number, y: number) {
   e.pivot.x = 8;
   e.pivot.y = 15;
   e.health = 1;
-  e.interactType = Interact.RESOURCE;
+  e.interactType = InteractType.RESOURCE;
 }
 
 function createStones(scene: Scene, x: number, y: number) {
@@ -311,7 +316,7 @@ function createStones(scene: Scene, x: number, y: number) {
   e.pivot.x = 8;
   e.pivot.y = 15;
   e.health = 1;
-  e.interactType = Interact.RESOURCE;
+  e.interactType = InteractType.RESOURCE;
 }
 
 function createTree(scene: Scene, x: number, y: number) {
@@ -330,7 +335,7 @@ function createTree(scene: Scene, x: number, y: number) {
   e.hitboxOffset.x = -6.5;
   e.hitboxOffset.y = -25;
   e.health = 3;
-  e.interactType = Interact.RESOURCE;
+  e.interactType = InteractType.RESOURCE;
   e.toolId = ToolId.AXE;
 }
 
@@ -345,7 +350,7 @@ function createRock(scene: Scene, x: number, y: number) {
   e.bodyOffset.x = -5;
   e.bodyOffset.y = -3;
   e.health = 5;
-  e.interactType = Interact.RESOURCE;
+  e.interactType = InteractType.RESOURCE;
   e.toolId = ToolId.AXE;
 }
 
@@ -359,6 +364,17 @@ function createItem(scene: Scene, x: number, y: number, itemId: ItemId, spriteId
   e.pivot.y = 8;
 }
 
+function createCraftingTablePlaceholder(scene: Scene, x: number, y: number) {
+  const e = createEntity(scene, x, y);
+  e.type = Type.BUILDING;
+  e.spriteId = "building_crafting_table";
+  e.pivot.x = 8;
+  e.pivot.y = 10;
+  e.alpha = 0.5;
+  e.buildingId = BuildingId.CRAFTING_TABLE_PLACEHOLDER;
+  e.interactType = InteractType.BUILDING;
+}
+
 function createCraftingTable(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
   e.type = Type.BUILDING;
@@ -370,24 +386,23 @@ function createCraftingTable(scene: Scene, x: number, y: number) {
   e.bodyOffset.x = -3;
   e.bodyOffset.y = -2;
   e.buildingId = BuildingId.CRAFTING_TABLE;
-  e.interactType = Interact.BUILDING;
-  e.interactToGameStateId = GameStateId.CRAFTING_TABLE_MENU;
+  e.interactType = InteractType.BUILDING;
 }
 
 function createItemTwig(scene: Scene, x: number, y: number) {
-  return createItem(scene, x, y, ItemId.TWIG, "item_twig");
+  createItem(scene, x, y, ItemId.TWIG, "item_twig");
 }
 
 function createItemLog(scene: Scene, x: number, y: number) {
-  return createItem(scene, x, y, ItemId.LOG, "item_log");
+  createItem(scene, x, y, ItemId.LOG, "item_log");
 }
 
 function createItemPebble(scene: Scene, x: number, y: number) {
-  return createItem(scene, x, y, ItemId.PEBBLE, "item_pebble");
+  createItem(scene, x, y, ItemId.PEBBLE, "item_pebble");
 }
 
 function createItemRock(scene: Scene, x: number, y: number) {
-  return createItem(scene, x, y, ItemId.ROCK, "item_rock");
+  createItem(scene, x, y, ItemId.ROCK, "item_rock");
 }
 
 const enum SceneId {
@@ -402,6 +417,8 @@ type Scene = {
   playerId: string;
   interactableId: string;
   selectedIndex: number;
+  selectedBuildingId: string;
+  selectedBuildingEntityId: string;
 };
 
 function createScene(id: SceneId) {
@@ -413,6 +430,8 @@ function createScene(id: SceneId) {
     playerId: "",
     interactableId: "",
     selectedIndex: 0,
+    selectedBuildingId: "",
+    selectedBuildingEntityId: "",
   };
   game.scenes[id] = scene;
   return scene;
@@ -421,7 +440,7 @@ function createScene(id: SceneId) {
 function loadWorldScene() {
   const scene = createScene(SceneId.WORLD);
   createPlayer(scene, 160, 90);
-  createCraftingTable(scene, 140, 90);
+  createCraftingTablePlaceholder(scene, 140, 90);
   setCameraPosition(160, 90);
   for (let x = 0; x < WIDTH; x += TILE_SIZE) {
     for (let y = 0; y < HEIGHT; y += TILE_SIZE) {
@@ -433,7 +452,7 @@ function loadWorldScene() {
 
 const enum GameStateId {
   NORMAL = "normal",
-  CRAFTING_TABLE_MENU = "crafting",
+  CRAFTING_MENU = "crafting",
 }
 
 type Game = {
@@ -459,6 +478,7 @@ const game: Game = {
   },
   buildings: {
     [BuildingId.CRAFTING_TABLE]: false,
+    [BuildingId.CRAFTING_TABLE_PLACEHOLDER]: false,
   },
   state: "",
 };
@@ -492,7 +512,7 @@ function update() {
         }
         break;
 
-      case GameStateId.CRAFTING_TABLE_MENU:
+      case GameStateId.CRAFTING_MENU:
         {
           if (isInputPressed(InputCode.KEY_LEFT)) {
             consumeInputPressed(InputCode.KEY_LEFT);
@@ -500,10 +520,21 @@ function update() {
           }
           if (isInputPressed(InputCode.KEY_RIGHT)) {
             consumeInputPressed(InputCode.KEY_RIGHT);
-            scene.selectedIndex = Math.min(BUILDINGS[BuildingId.CRAFTING_TABLE].length - 1, scene.selectedIndex + 1);
+            scene.selectedIndex = Math.min(BLUEPRINTS_PER_BUILDING[scene.selectedBuildingId].length - 1, scene.selectedIndex + 1);
           }
           if (isInputPressed(InputCode.KEY_ESCAPE)) {
             game.state = GameStateId.NORMAL;
+          }
+          if (isInputPressed(InputCode.KEY_Z) && isBlueprintCraftable(BLUEPRINTS_PER_BUILDING[scene.selectedBuildingId][scene.selectedIndex])) {
+            const building = scene.entities[scene.selectedBuildingEntityId];
+            game.state = GameStateId.NORMAL;
+            destroyEntity(scene, scene.selectedBuildingEntityId);
+            switch (building.buildingId) {
+              case BuildingId.CRAFTING_TABLE_PLACEHOLDER:
+                createCraftingTable(scene, building.pos.x, building.pos.y);
+                game.buildings[BuildingId.CRAFTING_TABLE] = true;
+                break;
+            }
           }
         }
         break;
@@ -521,8 +552,8 @@ function update() {
   }
 
   switch (game.state) {
-    case GameStateId.CRAFTING_TABLE_MENU:
-      renderCraftingMenu(scene, BUILDINGS[BuildingId.CRAFTING_TABLE]);
+    case GameStateId.CRAFTING_MENU:
+      renderCraftingMenu(scene, BLUEPRINTS_PER_BUILDING[scene.selectedBuildingId]);
       break;
   }
 
@@ -561,10 +592,10 @@ function updateState(scene: Scene, e: Entity) {
 
         if (interactable && isInputDown(InputCode.KEY_Z)) {
           switch (interactable.interactType) {
-            case Interact.RESOURCE:
+            case InteractType.RESOURCE:
               setState(e, State.PLAYER_INTERACT_RESOURCE);
               break;
-            case Interact.BUILDING:
+            case InteractType.BUILDING:
               setState(e, State.PLAYER_INTERACT_BUILDING);
               break;
           }
@@ -594,8 +625,10 @@ function updateState(scene: Scene, e: Entity) {
     case State.PLAYER_INTERACT_BUILDING:
       {
         const interactable = scene.entities[scene.interactableId];
-        game.state = interactable.interactToGameStateId;
         scene.selectedIndex = 0;
+        scene.selectedBuildingId = interactable.buildingId;
+        scene.selectedBuildingEntityId = interactable.id;
+        game.state = GameStateId.CRAFTING_MENU;
         setState(e, State.PLAYER_CONTROL);
       }
       break;
@@ -745,8 +778,7 @@ function renderEntity(scene: Scene, e: Entity) {
       scaleTransform(-1, 1);
     }
     if (e.spriteId) {
-      const alpha = e.interactType === Interact.BUILDING && !game.buildings[e.buildingId] ? 0.5 : 1;
-      setAlpha(e.alpha * alpha);
+      setAlpha(e.alpha);
       drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
       setAlpha(1);
     }
@@ -826,12 +858,13 @@ function renderInventory() {
   let id: ItemId;
   for (id in game.inventory) {
     const count = game.inventory[id];
-    if (!count) continue;
-    const item = ITEMS[id];
-    drawSprite("box", 0, 0);
-    drawSprite(item.spriteId, 0, 0);
-    drawText(count.toString(), 14, 10, "white", "right");
-    translateTransform(16, 0);
+    if (count) {
+      const item = ITEMS[id];
+      drawSprite("box", 0, 0);
+      drawSprite(item.spriteId, 0, 0);
+      drawText(count.toString(), 14, 10, "white", "right");
+      translateTransform(16, 0);
+    }
   }
 }
 
@@ -842,12 +875,12 @@ function renderToolBelt() {
   translateTransform(0, 5);
   let id: ToolId;
   for (id in game.tools) {
-    const isUnlocked = game.tools[id];
-    if (!isUnlocked) continue;
-    const blueprint = BLUEPRINTS[id];
-    drawSprite("box", 0, 0);
-    drawSprite(blueprint.spriteId, 0, 0);
-    translateTransform(16, 0);
+    if (game.tools[id]) {
+      const blueprint = BLUEPRINTS[id];
+      drawSprite("box", 0, 0);
+      drawSprite(blueprint.spriteId, 0, 0);
+      translateTransform(16, 0);
+    }
   }
 }
 
