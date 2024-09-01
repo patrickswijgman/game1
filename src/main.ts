@@ -104,85 +104,91 @@ const ASSETS: AssetsManifest = {
   sounds: {},
 };
 
+type Nil = "";
+const nil: Nil = "";
+
 const enum ItemId {
   TWIG = "twig",
   LOG = "log",
   PEBBLE = "pebble",
   ROCK = "rock",
 }
-
-type Item = {
-  name: string;
-  spriteId: string;
-};
-
-const ITEMS: Record<ItemId, Item> = {
-  [ItemId.TWIG]: {
-    name: "Twig",
-    spriteId: "item_twig",
-  },
-  [ItemId.LOG]: {
-    name: "Log",
-    spriteId: "item_log",
-  },
-  [ItemId.PEBBLE]: {
-    name: "Pebble",
-    spriteId: "item_pebble",
-  },
-  [ItemId.ROCK]: {
-    name: "Rock",
-    spriteId: "item_rock",
-  },
-};
-
-const MAX_ITEM_COUNT = 99;
-
 const enum ToolId {
   AXE = "axe",
 }
-
 const enum BuildingId {
   CRAFTING_TABLE = "crafting_table",
 }
 
-type BlueprintId = ToolId | BuildingId;
+type ThingId = Nil | ItemId | ToolId | BuildingId;
 
-type Blueprint = {
+type Thing = {
   name: string;
   spriteId: string;
-  recipe: Array<{ itemId: ItemId; amount: number }>;
+  recipe: Array<{ id: ThingId; amount: number }>;
+  recipes: Array<ThingId>;
 };
 
-const BLUEPRINTS: Record<BlueprintId, Blueprint> = {
+const THINGS: Record<ThingId, Thing> = {
+  [nil]: {
+    name: "",
+    spriteId: "",
+    recipe: [],
+    recipes: [],
+  },
+  [ItemId.TWIG]: {
+    name: "Twig",
+    spriteId: "item_twig",
+    recipe: [],
+    recipes: [],
+  },
+  [ItemId.LOG]: {
+    name: "Log",
+    spriteId: "item_log",
+    recipe: [],
+    recipes: [],
+  },
+  [ItemId.PEBBLE]: {
+    name: "Pebble",
+    spriteId: "item_pebble",
+    recipe: [],
+    recipes: [],
+  },
+  [ItemId.ROCK]: {
+    name: "Rock",
+    spriteId: "item_rock",
+    recipe: [],
+    recipes: [],
+  },
   [ToolId.AXE]: {
     name: "Axe",
     spriteId: "tool_axe",
     recipe: [
-      { itemId: ItemId.TWIG, amount: 10 },
-      { itemId: ItemId.PEBBLE, amount: 5 },
+      { id: ItemId.TWIG, amount: 10 },
+      { id: ItemId.PEBBLE, amount: 5 },
     ],
+    recipes: [],
   },
   [BuildingId.CRAFTING_TABLE]: {
     name: "Crafting Table",
     spriteId: "building_crafting_table",
     recipe: [
-      { itemId: ItemId.TWIG, amount: 10 },
-      { itemId: ItemId.PEBBLE, amount: 10 },
+      { id: ItemId.TWIG, amount: 10 },
+      { id: ItemId.PEBBLE, amount: 10 },
     ],
+    recipes: [ToolId.AXE],
   },
 };
 
-const BLUEPRINTS_PER_BUILDING: Record<BuildingId, Array<BlueprintId>> = {
-  [BuildingId.CRAFTING_TABLE]: [ToolId.AXE],
-};
+const MAX_ITEM_COUNT = 99;
 
-function isBlueprintCraftable(id: string) {
-  return BLUEPRINTS[id].recipe.every((item) => game.inventory[item.itemId] >= item.amount);
+function isCraftable(id: ThingId) {
+  return THINGS[id].recipe.every((item) => game.inventory[item.id] >= item.amount);
 }
 
-function spendBlueprintRecipe(id: string) {
-  for (const recipe of BLUEPRINTS[id].recipe) {
-    game.inventory[recipe.itemId] -= recipe.amount;
+function craft(id: ThingId) {
+  for (const recipe of THINGS[id].recipe) {
+    game.inventory[recipe.id] -= recipe.amount;
   }
 }
 
@@ -213,12 +219,12 @@ const enum InteractType {
 
 type Entity = {
   id: string;
-  type: string;
-  state: string;
-  itemId: string;
-  toolId: string;
-  interactType: string;
-  buildingId: string;
+  type: Type | Nil;
+  state: State | Nil;
+  itemId: ItemId | Nil;
+  toolId: ToolId | Nil;
+  buildingId: BuildingId | Nil;
+  interactType: InteractType | Nil;
   pos: Vector;
   vel: Vector;
   start: Vector;
@@ -244,12 +250,12 @@ type Entity = {
 function createEntity(scene: Scene, x: number, y: number) {
   const e: Entity = {
     id: uuid(),
-    type: "",
-    state: "",
-    itemId: "",
-    toolId: "",
-    buildingId: "",
-    interactType: "",
+    type: nil,
+    state: nil,
+    itemId: nil,
+    toolId: nil,
+    buildingId: nil,
+    interactType: nil,
     pos: vec(x, y),
     vel: vec(),
     start: vec(x, y),
@@ -406,7 +412,7 @@ type Scene = {
   interactableId: string;
   selectedIndex: number;
   selectedBuildingId: string;
-  selectedBuildingRecipes: Array<string>;
+  selectedBuildingRecipes: Array<ThingId>;
 };
 
 function createScene(id: SceneId) {
@@ -449,7 +455,7 @@ type Game = {
   inventory: Record<ItemId, number>;
   tools: Record<ToolId, boolean>;
   buildings: Record<BuildingId, boolean>;
-  state: string;
+  state: GameStateId;
 };
 
 const game: Game = {
@@ -467,7 +473,7 @@ const game: Game = {
   buildings: {
     [BuildingId.CRAFTING_TABLE]: false,
   },
-  state: "",
+  state: GameStateId.NORMAL,
 };
 
 async function setup() {
@@ -477,7 +483,6 @@ async function setup() {
   loadWorldScene();
 
   game.sceneId = SceneId.WORLD;
-  game.state = GameStateId.NORMAL;
 }
 
 function update() {
@@ -501,7 +506,7 @@ function update() {
 
       case GameStateId.CRAFTING_MENU:
         {
-          const blueprintId = scene.selectedBuildingRecipes[scene.selectedIndex];
+          const thingId = scene.selectedBuildingRecipes[scene.selectedIndex];
           if (isInputPressed(InputCode.KEY_LEFT)) {
             consumeInputPressed(InputCode.KEY_LEFT);
             scene.selectedIndex = Math.max(0, scene.selectedIndex - 1);
@@ -513,17 +518,17 @@ function update() {
           if (isInputPressed(InputCode.KEY_ESCAPE)) {
             game.state = GameStateId.NORMAL;
           }
-          if (isInputPressed(InputCode.KEY_Z) && isBlueprintCraftable(blueprintId)) {
-            if (blueprintId in game.tools) {
-              game.tools[blueprintId] = true;
+          if (isInputPressed(InputCode.KEY_Z) && isCraftable(thingId)) {
+            if (thingId in game.tools) {
+              game.tools[thingId] = true;
             }
-            if (blueprintId in game.buildings) {
-              game.buildings[blueprintId] = true;
+            if (thingId in game.buildings) {
+              game.buildings[thingId] = true;
             }
-            if (blueprintId in game.inventory) {
-              game.inventory[blueprintId] += 1;
+            if (thingId in game.inventory) {
+              game.inventory[thingId] += 1;
             }
-            spendBlueprintRecipe(blueprintId);
+            craft(thingId);
             game.state = GameStateId.NORMAL;
           }
         }
@@ -619,7 +624,7 @@ function updateState(scene: Scene, e: Entity) {
         scene.selectedBuildingId = interactable.buildingId;
         scene.selectedBuildingRecipes.length = 0;
         if (game.buildings[interactable.buildingId]) {
-          scene.selectedBuildingRecipes.push(...BLUEPRINTS_PER_BUILDING[interactable.buildingId]);
+          scene.selectedBuildingRecipes.push(...THINGS[interactable.buildingId].recipes);
         } else {
           scene.selectedBuildingRecipes.push(interactable.buildingId);
         }
@@ -790,12 +795,12 @@ function renderEntity(scene: Scene, e: Entity) {
   }
 }
 
-function renderCraftingMenu(scene: Scene, blueprints: Array<string>) {
-  for (let i = 0; i < blueprints.length; i++) {
-    const id = blueprints[i];
-    const blueprint = BLUEPRINTS[id];
-    const isSelected = id === blueprints[scene.selectedIndex];
-    const x = WIDTH / 2 + i * 16 - blueprints.length * 8;
+function renderCraftingMenu(scene: Scene, things: Array<ThingId>) {
+  for (let i = 0; i < things.length; i++) {
+    const id = things[i];
+    const thing = THINGS[id];
+    const isSelected = id === things[scene.selectedIndex];
+    const x = WIDTH / 2 + i * 16 - things.length * 8;
     const y = HEIGHT - 20;
     resetTransform();
     translateTransform(x, y);
@@ -807,15 +812,14 @@ function renderCraftingMenu(scene: Scene, blueprints: Array<string>) {
     if (isSelected) {
       scaleTransform(1.25, 1.25);
     }
-    drawSprite(blueprint.spriteId, -8, -8);
+    drawSprite(thing.spriteId, -8, -8);
     if (isSelected) {
-      const isCraftable = isBlueprintCraftable(id);
-      renderCraftingRecipe(blueprint, x, y, isCraftable);
+      renderCraftingRecipe(thing, x, y, isCraftable(id));
     }
   }
 }
 
-function renderCraftingRecipe(blueprint: Blueprint, anchorX: number, anchorY: number, isCraftable: boolean) {
+function renderCraftingRecipe(thing: Thing, anchorX: number, anchorY: number, isCraftable: boolean) {
   const bg = getSprite("tooltip");
   const x = anchorX;
   const y = anchorY - bg.h - 2;
@@ -831,14 +835,14 @@ function renderCraftingRecipe(blueprint: Blueprint, anchorX: number, anchorY: nu
   drawSprite("tooltip_outline", 0, 0);
   translateTransform(4, 4);
   scaleTransform(1.25, 1.25);
-  drawText(blueprint.name, 0, 0);
+  drawText(thing.name, 0, 0);
   scaleTransform(0.8, 0.8);
   translateTransform(0, 8);
   drawText(message, 0, 0, isError ? "red" : "green");
   translateTransform(0, 8);
-  for (const recipe of blueprint.recipe) {
-    const item = ITEMS[recipe.itemId];
-    const count = game.inventory[recipe.itemId];
+  for (const recipe of thing.recipe) {
+    const item = THINGS[recipe.id];
+    const count = game.inventory[recipe.id];
     drawSprite(item.spriteId, -2, -4);
     drawText(item.name, 12, 2);
     drawText(`x${recipe.amount} (${count})`, bg.w - 8, 2, "white", "right");
@@ -855,7 +859,7 @@ function renderInventory() {
   for (id in game.inventory) {
     const count = game.inventory[id];
     if (count) {
-      const item = ITEMS[id];
+      const item = THINGS[id];
       drawSprite("box", 0, 0);
       drawSprite(item.spriteId, 0, 0);
       drawText(count.toString(), 14, 10, "white", "right");
@@ -872,9 +876,9 @@ function renderToolBelt() {
   let id: ToolId;
   for (id in game.tools) {
     if (game.tools[id]) {
-      const blueprint = BLUEPRINTS[id];
+      const thing = THINGS[id];
       drawSprite("box", 0, 0);
-      drawSprite(blueprint.spriteId, 0, 0);
+      drawSprite(thing.spriteId, 0, 0);
       translateTransform(16, 0);
     }
   }
