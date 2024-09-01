@@ -125,7 +125,7 @@ type ThingId = Nil | ItemId | ToolId | BuildingId;
 type Thing = {
   name: string;
   spriteId: string;
-  recipe: Array<{ id: ThingId; amount: number }>;
+  ingredients: Array<{ id: ThingId; amount: number }>;
   recipes: Array<ThingId>;
 };
 
@@ -133,37 +133,37 @@ const THINGS: Record<ThingId, Thing> = {
   [nil]: {
     name: "",
     spriteId: "",
-    recipe: [],
+    ingredients: [],
     recipes: [],
   },
   [ItemId.TWIG]: {
     name: "Twig",
     spriteId: "item_twig",
-    recipe: [],
+    ingredients: [],
     recipes: [],
   },
   [ItemId.LOG]: {
     name: "Log",
     spriteId: "item_log",
-    recipe: [],
+    ingredients: [],
     recipes: [],
   },
   [ItemId.PEBBLE]: {
     name: "Pebble",
     spriteId: "item_pebble",
-    recipe: [],
+    ingredients: [],
     recipes: [],
   },
   [ItemId.ROCK]: {
     name: "Rock",
     spriteId: "item_rock",
-    recipe: [],
+    ingredients: [],
     recipes: [],
   },
   [ToolId.AXE]: {
     name: "Axe",
     spriteId: "tool_axe",
-    recipe: [
+    ingredients: [
       { id: ItemId.TWIG, amount: 10 },
       { id: ItemId.PEBBLE, amount: 5 },
     ],
@@ -172,7 +172,7 @@ const THINGS: Record<ThingId, Thing> = {
   [BuildingId.CRAFTING_TABLE]: {
     name: "Crafting Table",
     spriteId: "building_crafting_table",
-    recipe: [
+    ingredients: [
       { id: ItemId.TWIG, amount: 10 },
       { id: ItemId.PEBBLE, amount: 10 },
     ],
@@ -183,12 +183,12 @@ const THINGS: Record<ThingId, Thing> = {
 const MAX_ITEM_COUNT = 99;
 
 function isCraftable(id: ThingId) {
-  return THINGS[id].recipe.every((item) => game.inventory[item.id] >= item.amount);
+  return THINGS[id].ingredients.every((ingredient) => game.inventory[ingredient.id] >= ingredient.amount);
 }
 
 function craft(id: ThingId) {
-  for (const recipe of THINGS[id].recipe) {
-    game.inventory[recipe.id] -= recipe.amount;
+  for (const ingredient of THINGS[id].ingredients) {
+    game.inventory[ingredient.id] -= ingredient.amount;
   }
 }
 
@@ -840,12 +840,12 @@ function renderCraftingRecipe(thing: Thing, anchorX: number, anchorY: number, is
   translateTransform(0, 8);
   drawText(message, 0, 0, isError ? "red" : "green");
   translateTransform(0, 8);
-  for (const recipe of thing.recipe) {
-    const item = THINGS[recipe.id];
-    const count = game.inventory[recipe.id];
+  for (const ingredient of thing.ingredients) {
+    const item = THINGS[ingredient.id];
+    const count = game.inventory[ingredient.id];
     drawSprite(item.spriteId, -2, -4);
     drawText(item.name, 12, 2);
-    drawText(`x${recipe.amount} (${count})`, bg.w - 8, 2, "white", "right");
+    drawText(`x${ingredient.amount} (${count})`, bg.w - 8, 2, "white", "right");
     translateTransform(0, 10);
   }
 }
