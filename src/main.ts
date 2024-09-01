@@ -111,13 +111,15 @@ const nil: Nil = "";
 
 const enum ItemId {
   TWIG = "twig",
-  LOG = "log",
   PEBBLE = "pebble",
+  LOG = "log",
   ROCK = "rock",
 }
+
 const enum ToolId {
   AXE = "axe",
 }
+
 const enum BuildingId {
   CRAFTING_TABLE = "crafting_table",
 }
@@ -144,15 +146,15 @@ const THINGS: Record<ThingId, Thing> = {
     ingredients: [],
     recipes: [],
   },
-  [ItemId.LOG]: {
-    name: "Log",
-    spriteId: "item_log",
-    ingredients: [],
-    recipes: [],
-  },
   [ItemId.PEBBLE]: {
     name: "Pebble",
     spriteId: "item_pebble",
+    ingredients: [],
+    recipes: [],
+  },
+  [ItemId.LOG]: {
+    name: "Log",
+    spriteId: "item_log",
     ingredients: [],
     recipes: [],
   },
@@ -212,11 +214,6 @@ const enum State {
   TREE_IDLE = "tree_idle",
 }
 
-const enum InteractType {
-  RESOURCE = "resource",
-  BUILDING = "building",
-}
-
 type Entity = {
   id: string;
   type: Type | Nil;
@@ -224,7 +221,6 @@ type Entity = {
   itemId: ItemId | Nil;
   toolId: ToolId | Nil;
   buildingId: BuildingId | Nil;
-  interactType: InteractType | Nil;
   pos: Vector;
   vel: Vector;
   start: Vector;
@@ -245,6 +241,7 @@ type Entity = {
   isRigid: boolean;
   isVisible: boolean;
   isFlipped: boolean;
+  isInteractable: boolean;
 };
 
 function createEntity(scene: Scene, x: number, y: number) {
@@ -255,7 +252,6 @@ function createEntity(scene: Scene, x: number, y: number) {
     itemId: nil,
     toolId: nil,
     buildingId: nil,
-    interactType: nil,
     pos: vec(x, y),
     vel: vec(),
     start: vec(x, y),
@@ -276,6 +272,7 @@ function createEntity(scene: Scene, x: number, y: number) {
     isRigid: false,
     isVisible: true,
     isFlipped: false,
+    isInteractable: false,
   };
   scene.entities[e.id] = e;
   scene.active.push(e.id);
@@ -311,7 +308,7 @@ function createShrub(scene: Scene, x: number, y: number) {
   e.pivot.x = 8;
   e.pivot.y = 15;
   e.health = 1;
-  e.interactType = InteractType.RESOURCE;
+  e.isInteractable = true;
 }
 
 function createStones(scene: Scene, x: number, y: number) {
@@ -321,7 +318,7 @@ function createStones(scene: Scene, x: number, y: number) {
   e.pivot.x = 8;
   e.pivot.y = 15;
   e.health = 1;
-  e.interactType = InteractType.RESOURCE;
+  e.isInteractable = true;
 }
 
 function createTree(scene: Scene, x: number, y: number) {
@@ -340,8 +337,8 @@ function createTree(scene: Scene, x: number, y: number) {
   e.hitboxOffset.x = -6.5;
   e.hitboxOffset.y = -25;
   e.health = 3;
-  e.interactType = InteractType.RESOURCE;
   e.toolId = ToolId.AXE;
+  e.isInteractable = true;
 }
 
 function createRock(scene: Scene, x: number, y: number) {
@@ -355,8 +352,8 @@ function createRock(scene: Scene, x: number, y: number) {
   e.bodyOffset.x = -5;
   e.bodyOffset.y = -3;
   e.health = 5;
-  e.interactType = InteractType.RESOURCE;
   e.toolId = ToolId.AXE;
+  e.isInteractable = true;
 }
 
 function createItem(scene: Scene, x: number, y: number, itemId: ItemId, spriteId: string) {
@@ -380,7 +377,7 @@ function createCraftingTable(scene: Scene, x: number, y: number) {
   e.bodyOffset.x = -3;
   e.bodyOffset.y = -2;
   e.buildingId = BuildingId.CRAFTING_TABLE;
-  e.interactType = InteractType.BUILDING;
+  e.isInteractable = true;
 }
 
 function createItemTwig(scene: Scene, x: number, y: number) {
@@ -444,7 +441,7 @@ function loadWorldScene() {
 
 const enum GameStateId {
   NORMAL = "normal",
-  CRAFTING_MENU = "crafting",
+  CRAFTING_MENU = "crafting_menu",
 }
 
 type Game = {
@@ -584,15 +581,11 @@ function updateState(scene: Scene, e: Entity) {
 
         updateNearestInteractable(scene, e);
         const interactable = scene.entities[scene.interactableId];
-
         if (interactable && isInputDown(InputCode.KEY_Z)) {
-          switch (interactable.interactType) {
-            case InteractType.RESOURCE:
-              setState(e, State.PLAYER_INTERACT_RESOURCE);
-              break;
-            case InteractType.BUILDING:
-              setState(e, State.PLAYER_INTERACT_BUILDING);
-              break;
+          if (interactable.type === Type.BUILDING) {
+            setState(e, State.PLAYER_INTERACT_BUILDING);
+          } else {
+            setState(e, State.PLAYER_INTERACT_RESOURCE);
           }
         }
       }
@@ -638,9 +631,7 @@ function updateState(scene: Scene, e: Entity) {
 
     case State.ITEM_IDLE:
       {
-        tickTimer(e.timer1, Infinity);
-        e.offset.y = tween(0, -2, 1000, "easeInOutSine", e.timer1);
-        if (tickTimer(e.timer2, ITEM_SEEK_DELAY)) {
+        if (tickTimer(e.timer1, ITEM_SEEK_DELAY)) {
           setState(e, State.ITEM_SEEK);
         }
       }
@@ -732,7 +723,7 @@ function updateNearestInteractable(scene: Scene, player: Entity) {
   for (const id of scene.active) {
     const target = scene.entities[id];
     const distance = getVectorDistance(player.pos, target.pos);
-    if (target.interactType && distance < PLAYER_RANGE && distance < smallestDistance) {
+    if (target.isInteractable && distance < PLAYER_RANGE && distance < smallestDistance) {
       if (target.toolId && !game.tools[target.toolId]) {
         continue;
       }
