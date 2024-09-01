@@ -55,6 +55,7 @@ const PLAYER_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
 const ITEM_SEEK_TIME = 200;
 const ITEM_SEEK_DELAY = 500;
+const MAX_ITEM_COUNT = 99;
 
 const ASSETS: AssetsManifest = {
   textures: {
@@ -179,8 +180,6 @@ const THINGS: Record<ThingId, Thing> = {
     recipes: [ToolId.AXE],
   },
 };
-
-const MAX_ITEM_COUNT = 99;
 
 function isCraftable(id: ThingId) {
   return THINGS[id].ingredients.every((ingredient) => game.inventory[ingredient.id] >= ingredient.amount);
@@ -411,7 +410,6 @@ type Scene = {
   playerId: string;
   interactableId: string;
   selectedIndex: number;
-  selectedBuildingId: string;
   selectedBuildingRecipes: Array<ThingId>;
 };
 
@@ -424,7 +422,6 @@ function createScene(id: SceneId) {
     playerId: "",
     interactableId: "",
     selectedIndex: 0,
-    selectedBuildingId: "",
     selectedBuildingRecipes: [],
   };
   game.scenes[id] = scene;
@@ -462,9 +459,9 @@ const game: Game = {
   scenes: {},
   sceneId: "",
   inventory: {
-    [ItemId.TWIG]: 0,
+    [ItemId.TWIG]: 99,
+    [ItemId.PEBBLE]: 99,
     [ItemId.LOG]: 0,
-    [ItemId.PEBBLE]: 0,
     [ItemId.ROCK]: 0,
   },
   tools: {
@@ -585,7 +582,7 @@ function updateState(scene: Scene, e: Entity) {
         updateNearestInteractable(scene, e);
         const interactable = scene.entities[scene.interactableId];
 
-        if (interactable && isInputDown(InputCode.KEY_Z)) {
+        if (interactable && isInputPressed(InputCode.KEY_Z)) {
           switch (interactable.interactType) {
             case InteractType.RESOURCE:
               setState(e, State.PLAYER_INTERACT_RESOURCE);
@@ -621,14 +618,17 @@ function updateState(scene: Scene, e: Entity) {
       {
         const interactable = scene.entities[scene.interactableId];
         scene.selectedIndex = 0;
-        scene.selectedBuildingId = interactable.buildingId;
         scene.selectedBuildingRecipes.length = 0;
         if (game.buildings[interactable.buildingId]) {
-          scene.selectedBuildingRecipes.push(...THINGS[interactable.buildingId].recipes);
+          const building = THINGS[interactable.buildingId];
+          const recipes = building.recipes.filter((id) => !game.tools[id] && !game.buildings[id]);
+          scene.selectedBuildingRecipes.push(...recipes);
         } else {
           scene.selectedBuildingRecipes.push(interactable.buildingId);
         }
-        game.state = GameStateId.CRAFTING_MENU;
+        if (scene.selectedBuildingRecipes.length) {
+          game.state = GameStateId.CRAFTING_MENU;
+        }
         setState(e, State.PLAYER_CONTROL);
       }
       break;
