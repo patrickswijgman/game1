@@ -3,6 +3,7 @@ import {
   addVectorScaled,
   applyCameraTransform,
   AssetsManifest,
+  consumeInputDown,
   consumeInputPressed,
   copyVector,
   doesRectangleContain,
@@ -516,6 +517,8 @@ function update() {
             game.state = GameStateId.NORMAL;
           }
           if (isInputPressed(InputCode.KEY_Z) && isCraftable(thingId)) {
+            consumeInputPressed(InputCode.KEY_Z);
+            consumeInputDown(InputCode.KEY_Z);
             if (thingId in game.tools) {
               game.tools[thingId] = true;
             }
@@ -582,7 +585,7 @@ function updateState(scene: Scene, e: Entity) {
         updateNearestInteractable(scene, e);
         const interactable = scene.entities[scene.interactableId];
 
-        if (interactable && isInputPressed(InputCode.KEY_Z)) {
+        if (interactable && isInputDown(InputCode.KEY_Z)) {
           switch (interactable.interactType) {
             case InteractType.RESOURCE:
               setState(e, State.PLAYER_INTERACT_RESOURCE);
@@ -778,7 +781,7 @@ function renderEntity(scene: Scene, e: Entity) {
       scaleTransform(-1, 1);
     }
     if (e.spriteId) {
-      const alpha = e.interactType === InteractType.BUILDING && !game.buildings[e.buildingId] ? 0.5 : e.alpha;
+      const alpha = e.type === Type.BUILDING && !game.buildings[e.buildingId] ? 0.5 : e.alpha;
       setAlpha(alpha);
       drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
       setAlpha(1);
