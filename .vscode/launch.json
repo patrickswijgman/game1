@@ -16,13 +16,16 @@
       "type": "firefox",
       "request": "launch",
       "url": "http://localhost:5173",
-      "webRoot": "${workspaceFolder}"
+      "webRoot": "${workspaceFolder}",
+      "tmpDir": "tmp",
+      "presentation": { "hidden": true }
     },
     {
       "name": "vite",
       "type": "node-terminal",
       "request": "launch",
-      "command": "npm start"
+      "command": "npm start",
+      "presentation": { "hidden": true }
     }
   ]
 }
