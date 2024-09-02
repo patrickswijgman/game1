@@ -73,6 +73,7 @@ const ASSETS: AssetsManifest = {
         item_rock: [48, 48, 16, 16],
         tool_axe: [0, 64, 16, 16],
         tool_stonecutter: [16, 64, 16, 16],
+        tool_pickaxe: [32, 64, 16, 16],
         building_crafting_table: [0, 80, 16, 16],
         box: [0, 112, 16, 16],
         box_selection: [16, 112, 16, 16],
@@ -115,6 +116,7 @@ const enum ItemId {
 const enum ToolId {
   AXE = "axe",
   STONECUTTER = "stonecutter",
+  PICKAXE = "pickaxe",
 }
 
 const enum BuildingId {
@@ -181,6 +183,15 @@ const THINGS: Record<ThingId, Thing> = {
     ],
     recipes: [],
   },
+  [ToolId.PICKAXE]: {
+    name: "Pickaxe",
+    spriteId: "tool_pickaxe",
+    ingredients: [
+      { id: ItemId.LOG, amount: 5 },
+      { id: ItemId.ROCK, amount: 5 },
+    ],
+    recipes: [],
+  },
   [BuildingId.CRAFTING_TABLE]: {
     name: "Crafting Table",
     spriteId: "building_crafting_table",
@@ -188,7 +199,7 @@ const THINGS: Record<ThingId, Thing> = {
       { id: ItemId.TWIG, amount: 10 },
       { id: ItemId.PEBBLE, amount: 10 },
     ],
-    recipes: [ToolId.AXE, ToolId.STONECUTTER],
+    recipes: [ToolId.AXE, ToolId.STONECUTTER, ToolId.PICKAXE],
   },
 };
 
@@ -440,6 +451,7 @@ const game: Game = {
   tools: {
     [ToolId.AXE]: false,
     [ToolId.STONECUTTER]: false,
+    [ToolId.PICKAXE]: false,
   },
   buildings: {
     [BuildingId.CRAFTING_TABLE]: false,
