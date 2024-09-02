@@ -3,6 +3,7 @@ import {
   addVectorScaled,
   applyCameraTransform,
   AssetsManifest,
+  clamp,
   consumeInputDown,
   consumeInputPressed,
   copyVector,
@@ -71,6 +72,7 @@ const ASSETS: AssetsManifest = {
         item_pebble: [32, 48, 16, 16],
         item_rock: [48, 48, 16, 16],
         tool_axe: [0, 64, 16, 16],
+        tool_stonecutter: [16, 64, 16, 16],
         building_crafting_table: [0, 80, 16, 16],
         box: [0, 112, 16, 16],
         box_selection: [16, 112, 16, 16],
@@ -112,6 +114,7 @@ const enum ItemId {
 
 const enum ToolId {
   AXE = "axe",
+  STONECUTTER = "stonecutter",
 }
 
 const enum BuildingId {
@@ -164,7 +167,16 @@ const THINGS: Record<ThingId, Thing> = {
     name: "Axe",
     spriteId: "tool_axe",
     ingredients: [
-      { id: ItemId.TWIG, amount: 10 },
+      { id: ItemId.TWIG, amount: 5 },
+      { id: ItemId.PEBBLE, amount: 5 },
+    ],
+    recipes: [],
+  },
+  [ToolId.STONECUTTER]: {
+    name: "Stonecutter",
+    spriteId: "tool_stonecutter",
+    ingredients: [
+      { id: ItemId.TWIG, amount: 5 },
       { id: ItemId.PEBBLE, amount: 5 },
     ],
     recipes: [],
@@ -176,18 +188,12 @@ const THINGS: Record<ThingId, Thing> = {
       { id: ItemId.TWIG, amount: 10 },
       { id: ItemId.PEBBLE, amount: 10 },
     ],
-    recipes: [ToolId.AXE],
+    recipes: [ToolId.AXE, ToolId.STONECUTTER],
   },
 };
 
 function isCraftable(id: ThingId) {
   return THINGS[id].ingredients.every((ingredient) => game.inventory[ingredient.id] >= ingredient.amount);
-}
-
-function craft(id: ThingId) {
-  for (const ingredient of THINGS[id].ingredients) {
-    game.inventory[ingredient.id] -= ingredient.amount;
-  }
 }
 
 const enum State {
@@ -337,7 +343,7 @@ function createRock(scene: Scene, x: number, y: number) {
   e.bodyOffset.x = -5;
   e.bodyOffset.y = -3;
   e.health = 5;
-  e.toolId = ToolId.AXE;
+  e.toolId = ToolId.STONECUTTER;
   e.lootIds.push(ItemId.ROCK);
   e.isInteractable = true;
 }
@@ -426,13 +432,14 @@ const game: Game = {
   scenes: {},
   sceneId: "",
   inventory: {
-    [ItemId.TWIG]: 0,
-    [ItemId.PEBBLE]: 0,
+    [ItemId.TWIG]: 20,
+    [ItemId.PEBBLE]: 20,
     [ItemId.LOG]: 0,
     [ItemId.ROCK]: 0,
   },
   tools: {
     [ToolId.AXE]: false,
+    [ToolId.STONECUTTER]: false,
   },
   buildings: {
     [BuildingId.CRAFTING_TABLE]: false,
@@ -527,52 +534,19 @@ function updateState(scene: Scene, e: Entity) {
       break;
 
     case State.PLAYER_INTERACT_RESOURCE:
-      {
-        const completed = tickTimer(e.timer1, PLAYER_INTERACT_TIME);
-        const trigger = tickTimer(e.timer2, PLAYER_INTERACT_TIME / 2);
-        e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer1);
-        if (trigger) {
-          const interactable = scene.entities[scene.interactableId];
-          interactable.health -= 1;
-          if (interactable.health <= 0) {
-            for (const lootId of interactable.lootIds) {
-              createItem(scene, interactable.pos.x, interactable.pos.y, lootId);
-            }
-            destroyEntity(scene, interactable.id);
-          }
-        }
-        if (completed) {
-          setState(e, State.PLAYER_CONTROL);
-        }
-      }
-      break;
-
-    case State.PLAYER_INTERACT_BUILDING:
-      {
-        const interactable = scene.entities[scene.interactableId];
-        scene.selectedMenuItemIndex = 0;
-        scene.selectedBuildingRecipes.length = 0;
-        if (game.buildings[interactable.buildingId]) {
-          for (const id of THINGS[interactable.buildingId].recipes) {
-            if (!game.tools[id]) {
-              scene.selectedBuildingRecipes.push(id);
-            }
-          }
-        } else {
-          scene.selectedBuildingRecipes.push(interactable.buildingId);
-        }
-        if (scene.selectedBuildingRecipes.length) {
-          game.state = GameStateId.CRAFTING_MENU;
-        }
+      if (interactWithResource(scene, e)) {
         setState(e, State.PLAYER_CONTROL);
       }
       break;
 
+    case State.PLAYER_INTERACT_BUILDING:
+      interactWithBuilding(scene);
+      setState(e, State.PLAYER_CONTROL);
+      break;
+
     case State.ITEM_IDLE:
-      {
-        if (tickTimer(e.timer1, ITEM_SEEK_DELAY)) {
-          setState(e, State.ITEM_SEEK);
-        }
+      if (tickTimer(e.timer1, ITEM_SEEK_DELAY)) {
+        setState(e, State.ITEM_SEEK);
       }
       break;
 
@@ -604,6 +578,43 @@ function updateState(scene: Scene, e: Entity) {
         e.alpha = doesRectangleContain(e.hitbox, player.pos.x, player.pos.y) ? 0.5 : 1;
       }
       break;
+  }
+}
+
+function interactWithResource(scene: Scene, e: Entity) {
+  const completed = tickTimer(e.timer1, PLAYER_INTERACT_TIME);
+  const trigger = tickTimer(e.timer2, PLAYER_INTERACT_TIME / 2);
+  e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer1);
+  if (trigger) {
+    const interactable = scene.entities[scene.interactableId];
+    interactable.health -= 1;
+    if (interactable.health <= 0) {
+      for (const lootId of interactable.lootIds) {
+        createItem(scene, interactable.pos.x, interactable.pos.y, lootId);
+      }
+      destroyEntity(scene, interactable.id);
+    }
+  }
+  return completed;
+}
+
+function interactWithBuilding(scene: Scene) {
+  const interactable = scene.entities[scene.interactableId];
+  scene.selectedMenuItemIndex = 0;
+  scene.selectedBuildingRecipes.length = 0;
+  if (game.buildings[interactable.buildingId]) {
+    for (const id of THINGS[interactable.buildingId].recipes) {
+      if (!game.tools[id]) {
+        scene.selectedBuildingRecipes.push(id);
+      }
+    }
+  } else {
+    scene.selectedBuildingRecipes.push(interactable.buildingId);
+  }
+  if (scene.selectedBuildingRecipes.length) {
+    game.state = GameStateId.CRAFTING_MENU;
+  } else {
+    game.state = GameStateId.NORMAL;
   }
 }
 
@@ -639,7 +650,12 @@ function updateHitbox(e: Entity) {
 }
 
 function updateCraftingMenu(scene: Scene) {
+  if (scene.selectedBuildingRecipes.length === 0) {
+    game.state = GameStateId.NORMAL;
+    return;
+  }
   const thingId = scene.selectedBuildingRecipes[scene.selectedMenuItemIndex];
+  const thing = THINGS[thingId];
   if (isInputPressed(InputCode.KEY_LEFT)) {
     consumeInputPressed(InputCode.KEY_LEFT);
     scene.selectedMenuItemIndex = Math.max(0, scene.selectedMenuItemIndex - 1);
@@ -663,8 +679,14 @@ function updateCraftingMenu(scene: Scene) {
     if (thingId in game.inventory) {
       game.inventory[thingId] += 1;
     }
-    craft(thingId);
-    game.state = GameStateId.NORMAL;
+    for (const ingredient of thing.ingredients) {
+      game.inventory[ingredient.id] -= ingredient.amount;
+    }
+    scene.selectedBuildingRecipes.splice(scene.selectedMenuItemIndex, 1);
+    scene.selectedMenuItemIndex = clamp(scene.selectedMenuItemIndex, 0, scene.selectedBuildingRecipes.length - 1);
+    if (game.buildings[thingId]) {
+      interactWithBuilding(scene);
+    }
   }
 }
 
