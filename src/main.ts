@@ -70,11 +70,12 @@ const ASSETS: AssetsManifest = {
         item_twig: [0, 48, 16, 16],
         item_log: [16, 48, 16, 16],
         item_pebble: [32, 48, 16, 16],
-        item_rock: [48, 48, 16, 16],
+        item_stone: [48, 48, 16, 16],
         tool_axe: [0, 64, 16, 16],
         tool_stonecutter: [16, 64, 16, 16],
         tool_pickaxe: [32, 64, 16, 16],
         building_crafting_table: [0, 80, 16, 16],
+        building_furnace: [16, 80, 16, 16],
         box: [0, 112, 16, 16],
         box_selection: [16, 112, 16, 16],
         tooltip: [0, 128, 80, 64],
@@ -91,8 +92,9 @@ const ASSETS: AssetsManifest = {
         rock_outline: [32, 32, 16, 16],
         shrub_outline: [48, 32, 16, 16],
         stones_outline: [64, 32, 16, 16],
-        tooltip_outline: [0, 128, 80, 64],
         building_crafting_table_outline: [0, 80, 16, 16],
+        building_furnace_outline: [16, 80, 16, 16],
+        tooltip_outline: [0, 128, 80, 64],
       },
     },
   },
@@ -110,7 +112,7 @@ const enum ItemId {
   TWIG = "twig",
   PEBBLE = "pebble",
   LOG = "log",
-  ROCK = "rock",
+  Stone = "rock",
 }
 
 const enum ToolId {
@@ -121,6 +123,7 @@ const enum ToolId {
 
 const enum BuildingId {
   CRAFTING_TABLE = "crafting_table",
+  FURNACE = "furnace",
 }
 
 type EmptyId = "";
@@ -159,9 +162,9 @@ const THINGS: Record<ThingId, Thing> = {
     ingredients: [],
     recipes: [],
   },
-  [ItemId.ROCK]: {
-    name: "Rock",
-    spriteId: "item_rock",
+  [ItemId.Stone]: {
+    name: "Stone",
+    spriteId: "item_stone",
     ingredients: [],
     recipes: [],
   },
@@ -188,7 +191,7 @@ const THINGS: Record<ThingId, Thing> = {
     spriteId: "tool_pickaxe",
     ingredients: [
       { id: ItemId.LOG, amount: 5 },
-      { id: ItemId.ROCK, amount: 5 },
+      { id: ItemId.Stone, amount: 5 },
     ],
     recipes: [],
   },
@@ -199,6 +202,12 @@ const THINGS: Record<ThingId, Thing> = {
       { id: ItemId.TWIG, amount: 10 },
       { id: ItemId.PEBBLE, amount: 10 },
     ],
+    recipes: [ToolId.AXE, ToolId.STONECUTTER, ToolId.PICKAXE],
+  },
+  [BuildingId.FURNACE]: {
+    name: "Furnace",
+    spriteId: "building_furnace",
+    ingredients: [{ id: ItemId.Stone, amount: 10 }],
     recipes: [ToolId.AXE, ToolId.STONECUTTER, ToolId.PICKAXE],
   },
 };
@@ -355,7 +364,7 @@ function createRock(scene: Scene, x: number, y: number) {
   e.bodyOffset.y = -3;
   e.health = 5;
   e.toolId = ToolId.STONECUTTER;
-  e.lootIds.push(ItemId.ROCK);
+  e.lootIds.push(ItemId.Stone);
   e.isInteractable = true;
 }
 
@@ -369,16 +378,17 @@ function createItem(scene: Scene, x: number, y: number, itemId: ItemId) {
   e.pivot.y = 12;
 }
 
-function createCraftingTable(scene: Scene, x: number, y: number) {
+function createBuilding(scene: Scene, x: number, y: number, buildingId: BuildingId, pivot: Vector, body: Rectangle) {
+  const building = THINGS[buildingId];
   const e = createEntity(scene, x, y);
-  e.spriteId = "building_crafting_table";
-  e.pivot.x = 8;
-  e.pivot.y = 10;
-  e.body.w = 6;
-  e.body.h = 2;
-  e.bodyOffset.x = -3;
-  e.bodyOffset.y = -2;
-  e.buildingId = BuildingId.CRAFTING_TABLE;
+  e.spriteId = building.spriteId;
+  e.pivot.x = pivot.x;
+  e.pivot.y = pivot.y;
+  e.body.w = body.w;
+  e.body.h = body.h;
+  e.bodyOffset.x = -body.w / 2;
+  e.bodyOffset.y = -body.h;
+  e.buildingId = buildingId;
   e.isInteractable = true;
 }
 
@@ -415,7 +425,8 @@ function createScene(id: SceneId) {
 function loadWorldScene() {
   const scene = createScene(SceneId.WORLD);
   createPlayer(scene, 160, 90);
-  createCraftingTable(scene, 140, 90);
+  createBuilding(scene, 100, 60, BuildingId.CRAFTING_TABLE, vec(8, 10), rect(0, 0, 6, 2));
+  createBuilding(scene, 120, 60, BuildingId.FURNACE, vec(8, 15), rect(0, 0, 10, 3));
   setCameraPosition(160, 90);
   for (let x = 0; x < WIDTH; x += TILE_SIZE) {
     for (let y = 0; y < HEIGHT; y += TILE_SIZE) {
@@ -446,7 +457,7 @@ const game: Game = {
     [ItemId.TWIG]: 20,
     [ItemId.PEBBLE]: 20,
     [ItemId.LOG]: 0,
-    [ItemId.ROCK]: 0,
+    [ItemId.Stone]: 0,
   },
   tools: {
     [ToolId.AXE]: false,
@@ -455,6 +466,7 @@ const game: Game = {
   },
   buildings: {
     [BuildingId.CRAFTING_TABLE]: false,
+    [BuildingId.FURNACE]: false,
   },
   state: GameStateId.NORMAL,
 };
@@ -828,7 +840,7 @@ function renderCraftingRecipe(id: ThingId, anchorX: number, anchorY: number) {
     const color = count >= ingredient.amount ? "white" : "red";
     drawSprite(item.spriteId, -2, -4);
     drawText(item.name, 12, 2, color);
-    drawText(`x${ingredient.amount} (${count})`, bg.w - 8, 2, color, "right");
+    drawText(`${count}/${ingredient.amount}`, bg.w - 10, 2, color, "right");
     translateTransform(0, 10);
   }
 }
