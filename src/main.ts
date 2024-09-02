@@ -348,8 +348,8 @@ function createItem(scene: Scene, x: number, y: number, itemId: ItemId) {
   e.state = State.ITEM_IDLE;
   e.itemId = itemId;
   e.spriteId = item.spriteId;
-  e.pivot.x = 4;
-  e.pivot.y = 8;
+  e.pivot.x = 8;
+  e.pivot.y = 12;
 }
 
 function createCraftingTable(scene: Scene, x: number, y: number) {
