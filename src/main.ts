@@ -63,10 +63,10 @@ const ASSETS: AssetsManifest = {
       url: "textures/atlas.png",
       sprites: {
         player: [0, 0, 16, 16],
-        tree: [0, 16, 32, 32],
-        rock: [32, 32, 16, 16],
-        shrub: [48, 32, 16, 16],
-        stones: [64, 32, 16, 16],
+        tree: [0, 16, 16, 32],
+        rock: [16, 32, 16, 16],
+        shrub: [32, 32, 16, 16],
+        stones: [48, 32, 16, 16],
         item_twig: [0, 48, 16, 16],
         item_log: [16, 48, 16, 16],
         item_pebble: [32, 48, 16, 16],
@@ -88,10 +88,10 @@ const ASSETS: AssetsManifest = {
       mode: "circle",
       color: "white",
       sprites: {
-        tree_outline: [0, 16, 32, 32],
-        rock_outline: [32, 32, 16, 16],
-        shrub_outline: [48, 32, 16, 16],
-        stones_outline: [64, 32, 16, 16],
+        tree_outline: [0, 16, 16, 32],
+        rock_outline: [16, 32, 16, 16],
+        shrub_outline: [32, 32, 16, 16],
+        stones_outline: [48, 32, 16, 16],
         building_crafting_table_outline: [0, 80, 16, 16],
         building_furnace_outline: [16, 80, 16, 16],
         tooltip_outline: [0, 128, 80, 64],
@@ -144,6 +144,7 @@ const THINGS: Record<ThingId, Thing> = {
     ingredients: [],
     recipes: [],
   },
+
   [ItemId.TWIG]: {
     name: "Twig",
     spriteId: "item_twig",
@@ -168,6 +169,7 @@ const THINGS: Record<ThingId, Thing> = {
     ingredients: [],
     recipes: [],
   },
+
   [ToolId.AXE]: {
     name: "Axe",
     spriteId: "tool_axe",
@@ -195,6 +197,7 @@ const THINGS: Record<ThingId, Thing> = {
     ],
     recipes: [],
   },
+
   [BuildingId.CRAFTING_TABLE]: {
     name: "Crafting Table",
     spriteId: "building_crafting_table",
@@ -207,7 +210,10 @@ const THINGS: Record<ThingId, Thing> = {
   [BuildingId.FURNACE]: {
     name: "Furnace",
     spriteId: "building_furnace",
-    ingredients: [{ id: ItemId.Stone, amount: 10 }],
+    ingredients: [
+      { id: ItemId.Stone, amount: 20 },
+      { id: ItemId.LOG, amount: 5 },
+    ],
     recipes: [ToolId.AXE, ToolId.STONECUTTER, ToolId.PICKAXE],
   },
 };
@@ -337,7 +343,7 @@ function createTree(scene: Scene, x: number, y: number) {
   const e = createEntity(scene, x, y);
   e.state = State.TREE_IDLE;
   e.spriteId = "tree";
-  e.pivot.x = 16;
+  e.pivot.x = 8;
   e.pivot.y = 31;
   e.body.w = 2;
   e.body.h = 2;
@@ -386,8 +392,8 @@ function createBuilding(scene: Scene, x: number, y: number, buildingId: Building
   e.pivot.y = pivot.y;
   e.body.w = body.w;
   e.body.h = body.h;
-  e.bodyOffset.x = -body.w / 2;
-  e.bodyOffset.y = -body.h;
+  e.bodyOffset.x = body.x;
+  e.bodyOffset.y = body.y;
   e.buildingId = buildingId;
   e.isInteractable = true;
 }
@@ -425,9 +431,9 @@ function createScene(id: SceneId) {
 function loadWorldScene() {
   const scene = createScene(SceneId.WORLD);
   createPlayer(scene, 160, 90);
-  createBuilding(scene, 100, 60, BuildingId.CRAFTING_TABLE, vec(8, 10), rect(0, 0, 6, 2));
-  createBuilding(scene, 120, 60, BuildingId.FURNACE, vec(8, 15), rect(0, 0, 10, 3));
   setCameraPosition(160, 90);
+  createBuilding(scene, 100, 60, BuildingId.CRAFTING_TABLE, vec(8, 10), rect(-3, -2, 6, 2));
+  createBuilding(scene, 120, 60, BuildingId.FURNACE, vec(8, 15), rect(-5, -3, 10, 3));
   for (let x = 0; x < WIDTH; x += TILE_SIZE) {
     for (let y = 0; y < HEIGHT; y += TILE_SIZE) {
       const factory = pick([createShrub, createTree, createStones, createRock]);
@@ -436,23 +442,23 @@ function loadWorldScene() {
   }
 }
 
-const enum GameStateId {
+const enum GameState {
   NORMAL = "normal",
   CRAFTING_MENU = "crafting_menu",
 }
 
 type Game = {
   scenes: Record<string, Scene>;
-  sceneId: string;
+  sceneId: SceneId;
   inventory: Record<ItemId, number>;
   tools: Record<ToolId, boolean>;
   buildings: Record<BuildingId, boolean>;
-  state: GameStateId;
+  state: GameState;
 };
 
 const game: Game = {
   scenes: {},
-  sceneId: "",
+  sceneId: SceneId.WORLD,
   inventory: {
     [ItemId.TWIG]: 20,
     [ItemId.PEBBLE]: 20,
@@ -468,14 +474,13 @@ const game: Game = {
     [BuildingId.CRAFTING_TABLE]: false,
     [BuildingId.FURNACE]: false,
   },
-  state: GameStateId.NORMAL,
+  state: GameState.NORMAL,
 };
 
 async function setup() {
   await loadAssets(ASSETS);
   setFont("default");
   loadWorldScene();
-  game.sceneId = SceneId.WORLD;
 }
 
 function update() {
@@ -486,7 +491,7 @@ function update() {
   const scene = game.scenes[game.sceneId];
 
   switch (game.state) {
-    case GameStateId.NORMAL:
+    case GameState.NORMAL:
       for (const id of scene.active) {
         const e = scene.entities[id];
         updateState(scene, e);
@@ -495,7 +500,7 @@ function update() {
       }
       break;
 
-    case GameStateId.CRAFTING_MENU:
+    case GameState.CRAFTING_MENU:
       updateCraftingMenu(scene);
       break;
   }
@@ -511,7 +516,7 @@ function update() {
   }
 
   switch (game.state) {
-    case GameStateId.CRAFTING_MENU:
+    case GameState.CRAFTING_MENU:
       renderCraftingMenu(scene);
       break;
   }
@@ -636,9 +641,9 @@ function interactWithBuilding(scene: Scene) {
     scene.selectedBuildingRecipes.push(interactable.buildingId);
   }
   if (scene.selectedBuildingRecipes.length) {
-    game.state = GameStateId.CRAFTING_MENU;
+    game.state = GameState.CRAFTING_MENU;
   } else {
-    game.state = GameStateId.NORMAL;
+    game.state = GameState.NORMAL;
   }
 }
 
@@ -675,7 +680,7 @@ function updateHitbox(e: Entity) {
 
 function updateCraftingMenu(scene: Scene) {
   if (scene.selectedBuildingRecipes.length === 0) {
-    game.state = GameStateId.NORMAL;
+    game.state = GameState.NORMAL;
     return;
   }
   const thingId = scene.selectedBuildingRecipes[scene.selectedMenuItemIndex];
@@ -689,7 +694,7 @@ function updateCraftingMenu(scene: Scene) {
     scene.selectedMenuItemIndex = Math.min(scene.selectedBuildingRecipes.length - 1, scene.selectedMenuItemIndex + 1);
   }
   if (isInputPressed(InputCode.KEY_ESCAPE)) {
-    game.state = GameStateId.NORMAL;
+    game.state = GameState.NORMAL;
   }
   if (isInputPressed(InputCode.KEY_Z) && isCraftable(thingId)) {
     consumeInputPressed(InputCode.KEY_Z);
@@ -801,9 +806,6 @@ function renderCraftingMenu(scene: Scene) {
       drawSprite("box_selection", 0, 0);
     }
     translateTransform(8, 8);
-    if (isSelected) {
-      scaleTransform(1.25, 1.25);
-    }
     drawSprite(recipe.spriteId, -8, -8);
     if (isSelected) {
       renderCraftingRecipe(id, x, y);
