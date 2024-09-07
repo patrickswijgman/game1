@@ -74,11 +74,12 @@ const ASSETS: AssetsManifest = {
         tool_axe: [0, 64, 16, 16],
         tool_stonecutter: [16, 64, 16, 16],
         tool_pickaxe: [32, 64, 16, 16],
-        building_crafting_table: [0, 80, 16, 16],
-        building_furnace: [16, 80, 16, 16],
-        box: [0, 112, 16, 16],
-        box_selection: [16, 112, 16, 16],
-        tooltip: [0, 128, 80, 64],
+        building_crafting_table: [0, 96, 16, 16],
+        building_furnace: [16, 96, 16, 16],
+        building_portal: [32, 80, 32, 32],
+        box: [0, 128, 16, 16],
+        box_selection: [16, 128, 16, 16],
+        tooltip: [0, 144, 80, 64],
       },
     },
   },
@@ -92,9 +93,10 @@ const ASSETS: AssetsManifest = {
         rock_outline: [16, 32, 16, 16],
         shrub_outline: [32, 32, 16, 16],
         stones_outline: [48, 32, 16, 16],
-        building_crafting_table_outline: [0, 80, 16, 16],
-        building_furnace_outline: [16, 80, 16, 16],
-        tooltip_outline: [0, 128, 80, 64],
+        building_crafting_table_outline: [0, 96, 16, 16],
+        building_furnace_outline: [16, 96, 16, 16],
+        building_portal_outline: [32, 80, 32, 32],
+        tooltip_outline: [0, 144, 80, 64],
       },
     },
   },
@@ -128,16 +130,18 @@ const enum Type {
 
   BUILDING_CRAFTING_TABLE = "crafting_table",
   BUILDING_FURNACE = "furnace",
+  BUILDING_PORTAL_HOME = "building_portal_home",
+  BUILDING_PORTAL_FOREST = "building_portal_forest",
 }
 
-type Crafting = {
+type CraftingEntry = {
   name: string;
   spriteId: string;
   ingredients: Array<{ type: Type; amount: number }>;
   recipes: Array<Type>;
 };
 
-const CRAFTING_BOOK: Record<string, Crafting> = {
+const CRAFTING_BOOK: Record<string, CraftingEntry> = {
   [Type.ITEM_TWIG]: {
     name: "Twig",
     spriteId: "item_twig",
@@ -175,7 +179,7 @@ const CRAFTING_BOOK: Record<string, Crafting> = {
     name: "Stonecutter",
     spriteId: "tool_stonecutter",
     ingredients: [
-      { type: Type.ITEM_TWIG, amount: 5 },
+      { type: Type.ITEM_LOG, amount: 2 },
       { type: Type.ITEM_PEBBLE, amount: 5 },
     ],
     recipes: [],
@@ -204,6 +208,15 @@ const CRAFTING_BOOK: Record<string, Crafting> = {
     ingredients: [
       { type: Type.ITEM_STONE, amount: 20 },
       { type: Type.ITEM_LOG, amount: 5 },
+    ],
+    recipes: [],
+  },
+  [Type.BUILDING_PORTAL_FOREST]: {
+    name: "Forest Portal",
+    spriteId: "building_portal",
+    ingredients: [
+      { type: Type.ITEM_TWIG, amount: 10 },
+      { type: Type.ITEM_PEBBLE, amount: 10 },
     ],
     recipes: [],
   },
@@ -247,11 +260,13 @@ type Entity = {
   health: number;
   tool: Type;
   loot: Array<Type>;
+  portalSceneId: SceneId;
   isRigid: boolean;
   isVisible: boolean;
   isFlipped: boolean;
   isInteractable: boolean;
   isBuilding: boolean;
+  isPortal: boolean;
 };
 
 function createEntity(scene: Scene, x: number, y: number, type: Type) {
@@ -279,11 +294,13 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     health: 0,
     tool: Type.NONE,
     loot: [],
+    portalSceneId: SceneId.HOME,
     isRigid: false,
     isVisible: true,
     isFlipped: false,
     isInteractable: false,
     isBuilding: false,
+    isPortal: false,
   };
   switch (type) {
     case Type.PLAYER:
@@ -298,6 +315,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.isRigid = true;
       e.health = 1;
       scene.playerId = id;
+      setCameraPosition(x, y);
       break;
 
     case Type.SHRUB:
@@ -395,13 +413,41 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     case Type.BUILDING_FURNACE:
       e.spriteId = "building_furnace";
       e.pivot.x = 8;
-      e.pivot.y = 15;
+      e.pivot.y = 14;
       e.body.w = 10;
       e.body.h = 2;
       e.bodyOffset.x = -5;
       e.bodyOffset.y = -2;
       e.isInteractable = true;
       e.isBuilding = true;
+      break;
+
+    case Type.BUILDING_PORTAL_HOME:
+      e.spriteId = "building_portal";
+      e.pivot.x = 16;
+      e.pivot.y = 26;
+      e.body.w = 26;
+      e.body.h = 4;
+      e.bodyOffset.x = -13;
+      e.bodyOffset.y = -4;
+      e.isInteractable = true;
+      e.isBuilding = true;
+      e.isPortal = true;
+      e.portalSceneId = SceneId.HOME;
+      break;
+
+    case Type.BUILDING_PORTAL_FOREST:
+      e.spriteId = "building_portal";
+      e.pivot.x = 16;
+      e.pivot.y = 26;
+      e.body.w = 26;
+      e.body.h = 4;
+      e.bodyOffset.x = -13;
+      e.bodyOffset.y = -4;
+      e.isInteractable = true;
+      e.isBuilding = true;
+      e.isPortal = true;
+      e.portalSceneId = SceneId.FOREST;
       break;
   }
   scene.entities[id] = e;
@@ -414,7 +460,8 @@ function destroyEntity(scene: Scene, id: string) {
 }
 
 const enum SceneId {
-  WORLD = "world",
+  HOME = "home",
+  FOREST = "forest",
 }
 
 type Scene = {
@@ -425,6 +472,7 @@ type Scene = {
   playerId: string;
   interactableId: string;
   selectedMenuItemIndex: number;
+  selectedBuildingId: string;
   selectedBuildingRecipes: Array<Type>;
 };
 
@@ -437,15 +485,22 @@ function createScene(id: SceneId) {
     playerId: "",
     interactableId: "",
     selectedMenuItemIndex: 0,
+    selectedBuildingId: "",
     selectedBuildingRecipes: [],
   };
   switch (id) {
-    case SceneId.WORLD:
+    case SceneId.HOME:
       {
         createEntity(scene, 160, 90, Type.PLAYER);
-        createEntity(scene, 100, 60, Type.BUILDING_CRAFTING_TABLE);
-        createEntity(scene, 120, 60, Type.BUILDING_FURNACE);
-        setCameraPosition(160, 90);
+        createEntity(scene, 120, 80, Type.BUILDING_CRAFTING_TABLE);
+        createEntity(scene, 140, 80, Type.BUILDING_FURNACE);
+        createEntity(scene, 160, 40, Type.BUILDING_PORTAL_FOREST);
+      }
+      break;
+
+    case SceneId.FOREST:
+      {
+        createEntity(scene, 160, 90, Type.PLAYER);
         const types = [Type.SHRUB, Type.STONES, Type.TREE, Type.ROCK];
         for (let x = 0; x < WIDTH; x += TILE_SIZE) {
           for (let y = 0; y < HEIGHT; y += TILE_SIZE) {
@@ -475,7 +530,7 @@ type Game = {
 
 const game: Game = {
   scenes: {},
-  sceneId: SceneId.WORLD,
+  sceneId: SceneId.HOME,
   inventory: {
     [Type.ITEM_TWIG]: 20,
     [Type.ITEM_PEBBLE]: 20,
@@ -490,6 +545,7 @@ const game: Game = {
   buildings: {
     [Type.BUILDING_CRAFTING_TABLE]: false,
     [Type.BUILDING_FURNACE]: false,
+    [Type.BUILDING_PORTAL_FOREST]: false,
   },
   state: GameState.NORMAL,
 };
@@ -497,7 +553,8 @@ const game: Game = {
 async function setup() {
   await loadAssets(ASSETS);
   setFont("default");
-  createScene(SceneId.WORLD);
+  createScene(SceneId.HOME);
+  createScene(SceneId.FOREST);
 }
 
 function update() {
@@ -641,20 +698,26 @@ function interactWithResource(scene: Scene, e: Entity) {
 function interactWithBuilding(scene: Scene) {
   const interactable = scene.entities[scene.interactableId];
   scene.selectedMenuItemIndex = 0;
+  scene.selectedBuildingId = interactable.id;
   scene.selectedBuildingRecipes.length = 0;
-  if (game.buildings[interactable.type]) {
-    for (const type of CRAFTING_BOOK[interactable.type].recipes) {
-      if (!game.tools[type]) {
-        scene.selectedBuildingRecipes.push(type);
+
+  if (interactable.isPortal && game.buildings[interactable.type]) {
+    game.sceneId = interactable.portalSceneId;
+  } else {
+    if (game.buildings[interactable.type]) {
+      for (const type of CRAFTING_BOOK[interactable.type].recipes) {
+        if (!game.tools[type]) {
+          scene.selectedBuildingRecipes.push(type);
+        }
       }
+    } else {
+      scene.selectedBuildingRecipes.push(interactable.type);
     }
-  } else {
-    scene.selectedBuildingRecipes.push(interactable.type);
-  }
-  if (scene.selectedBuildingRecipes.length) {
-    game.state = GameState.CRAFTING_MENU;
-  } else {
-    game.state = GameState.NORMAL;
+    if (scene.selectedBuildingRecipes.length) {
+      game.state = GameState.CRAFTING_MENU;
+    } else {
+      game.state = GameState.NORMAL;
+    }
   }
 }
 
@@ -696,6 +759,7 @@ function updateCraftingMenu(scene: Scene) {
     game.state = GameState.NORMAL;
     return;
   }
+  const building = scene.entities[scene.selectedBuildingId];
   const type = scene.selectedBuildingRecipes[scene.selectedMenuItemIndex];
   if (isInputPressed(InputCode.KEY_LEFT)) {
     consumeInputPressed(InputCode.KEY_LEFT);
@@ -725,7 +789,7 @@ function updateCraftingMenu(scene: Scene) {
     }
     scene.selectedBuildingRecipes.splice(scene.selectedMenuItemIndex, 1);
     scene.selectedMenuItemIndex = clamp(scene.selectedMenuItemIndex, 0, scene.selectedBuildingRecipes.length - 1);
-    if (game.buildings[type]) {
+    if (!building.isPortal && game.buildings[type]) {
       interactWithBuilding(scene);
     }
   }
@@ -809,6 +873,7 @@ function renderCraftingMenu(scene: Scene) {
     const id = recipes[i];
     const recipe = CRAFTING_BOOK[id];
     const isSelected = i === scene.selectedMenuItemIndex;
+    const sprite = getSprite(recipe.spriteId);
     const x = WIDTH / 2 + i * 16 - recipes.length * 8;
     const y = HEIGHT - 20;
     resetTransform();
@@ -817,6 +882,8 @@ function renderCraftingMenu(scene: Scene) {
     if (isSelected) {
       drawSprite("box_selection", 0, 0);
     }
+    const scale = 16 / sprite.w;
+    scaleTransform(scale, scale);
     translateTransform(8, 8);
     drawSprite(recipe.spriteId, -8, -8);
     if (isSelected) {
@@ -828,9 +895,9 @@ function renderCraftingMenu(scene: Scene) {
 function renderCraftingRecipe(type: Type, anchorX: number, anchorY: number) {
   const recipe = CRAFTING_BOOK[type];
   const isValid = isCraftable(type);
-  const bg = getSprite("tooltip");
+  const sprite = getSprite("tooltip");
   const x = anchorX;
-  const y = anchorY - bg.h - 2;
+  const y = anchorY - sprite.h - 2;
   let message = "Craftable";
   let isError = false;
   if (!isValid) {
@@ -838,7 +905,7 @@ function renderCraftingRecipe(type: Type, anchorX: number, anchorY: number) {
     isError = true;
   }
   resetTransform();
-  translateTransform(x - bg.w / 2 + 8, y);
+  translateTransform(x - sprite.w / 2 + 8, y);
   drawSprite("tooltip", 0, 0);
   drawSprite("tooltip_outline", 0, 0);
   translateTransform(4, 4);
@@ -854,7 +921,7 @@ function renderCraftingRecipe(type: Type, anchorX: number, anchorY: number) {
     const color = count >= ingredient.amount ? "white" : "red";
     drawSprite(item.spriteId, -2, -4);
     drawText(item.name, 12, 2, color);
-    drawText(`${count}/${ingredient.amount}`, bg.w - 10, 2, color, "right");
+    drawText(`${count}/${ingredient.amount}`, sprite.w - 10, 2, color, "right");
     translateTransform(0, 10);
   }
 }
