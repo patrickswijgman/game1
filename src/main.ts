@@ -4,7 +4,6 @@ import {
   applyCameraTransform,
   AssetsManifest,
   clamp,
-  consumeInputDown,
   consumeInputPressed,
   copyVector,
   doesRectangleContain,
@@ -67,6 +66,7 @@ const ASSETS: AssetsManifest = {
         rock: [16, 32, 16, 16],
         shrub: [32, 32, 16, 16],
         stones: [48, 32, 16, 16],
+        chest: [16, 16, 16, 16],
         item_twig: [0, 48, 16, 16],
         item_log: [16, 48, 16, 16],
         item_pebble: [32, 48, 16, 16],
@@ -95,6 +95,7 @@ const ASSETS: AssetsManifest = {
         rock_outline: [16, 32, 16, 16],
         shrub_outline: [32, 32, 16, 16],
         stones_outline: [48, 32, 16, 16],
+        chest_outline: [16, 16, 16, 16],
         building_crafting_table_outline: [0, 96, 16, 16],
         building_furnace_outline: [16, 96, 16, 16],
         building_portal_outline: [32, 80, 32, 32],
@@ -120,6 +121,7 @@ const enum Type {
   STONES = "stones",
   TREE = "tree",
   ROCK = "rock",
+  CHEST = "chest",
 
   ITEM_TWIG = "item_twig",
   ITEM_PEBBLE = "item_pebble",
@@ -376,6 +378,19 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.isInteractable = true;
       break;
 
+    case Type.CHEST:
+      e.spriteId = "chest";
+      e.pivot.x = 8;
+      e.pivot.y = 15;
+      e.body.w = 8;
+      e.body.h = 2;
+      e.bodyOffset.x = -4;
+      e.bodyOffset.y = -2;
+      e.health = 1;
+      e.loot.push(Type.ITEM_PORTAL_SHARD);
+      e.isInteractable = true;
+      break;
+
     case Type.ITEM_TWIG:
       e.spriteId = "item_twig";
       e.state = State.ITEM_IDLE;
@@ -466,6 +481,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
   scene.entities[id] = e;
   scene.active.push(id);
   scene.render.push(id);
+  return e;
 }
 
 function destroyEntity(scene: Scene, id: string) {
@@ -507,6 +523,7 @@ function createScene(id: SceneId) {
         createEntity(scene, 160, 90, Type.PLAYER);
         createEntity(scene, 120, 80, Type.BUILDING_CRAFTING_TABLE);
         createEntity(scene, 140, 80, Type.BUILDING_FURNACE);
+        createEntity(scene, 160, 80, Type.CHEST);
         createEntity(scene, 160, 40, Type.BUILDING_PORTAL_FOREST);
       }
       break;
@@ -526,6 +543,7 @@ function createScene(id: SceneId) {
       break;
   }
   game.scenes[id] = scene;
+  return scene;
 }
 
 const enum GameState {
@@ -870,10 +888,10 @@ function renderEntity(scene: Scene, e: Entity) {
     }
     if (e.spriteId) {
       if (e.isBuilding) {
-        if (e.id === scene.interactableId) {
-          drawSprite("icon_construct", -8, 0);
-        }
         if (!game.buildings[e.type]) {
+          if (e.id === scene.interactableId) {
+            drawSprite("icon_construct", -8, 0);
+          }
           setAlpha(0.5);
         } else {
           setAlpha(e.alpha);
