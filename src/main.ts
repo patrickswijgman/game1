@@ -437,10 +437,10 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     case Type.BUILDING_PORTAL_HOME:
       e.spriteId = "building_portal";
       e.pivot.x = 16;
-      e.pivot.y = 26;
-      e.body.w = 26;
+      e.pivot.y = 24;
+      e.body.w = 20;
       e.body.h = 4;
-      e.bodyOffset.x = -13;
+      e.bodyOffset.x = -10;
       e.bodyOffset.y = -4;
       e.isInteractable = true;
       e.isBuilding = true;
@@ -451,10 +451,10 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     case Type.BUILDING_PORTAL_FOREST:
       e.spriteId = "building_portal";
       e.pivot.x = 16;
-      e.pivot.y = 26;
-      e.body.w = 26;
+      e.pivot.y = 24;
+      e.body.w = 20;
       e.body.h = 4;
-      e.bodyOffset.x = -13;
+      e.bodyOffset.x = -10;
       e.bodyOffset.y = -4;
       e.isInteractable = true;
       e.isBuilding = true;
