@@ -75,6 +75,7 @@ const ASSETS: AssetsManifest = {
         tool_axe: [0, 64, 16, 16],
         tool_stonecutter: [16, 64, 16, 16],
         tool_pickaxe: [32, 64, 16, 16],
+        icon_construct: [0, 80, 16, 16],
         building_crafting_table: [0, 96, 16, 16],
         building_furnace: [16, 96, 16, 16],
         building_portal: [32, 80, 32, 32],
@@ -868,13 +869,23 @@ function renderEntity(scene: Scene, e: Entity) {
       scaleTransform(-1, 1);
     }
     if (e.spriteId) {
-      const alpha = e.isBuilding && !game.buildings[e.type] ? 0.5 : e.alpha;
-      setAlpha(alpha);
+      if (e.isBuilding) {
+        if (e.id === scene.interactableId) {
+          drawSprite("icon_construct", -8, 0);
+        }
+        if (!game.buildings[e.type]) {
+          setAlpha(0.5);
+        } else {
+          setAlpha(e.alpha);
+        }
+      } else {
+        setAlpha(e.alpha);
+      }
       drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
       setAlpha(1);
-    }
-    if (e.id === scene.interactableId) {
-      drawSprite(`${e.spriteId}_outline`, -e.pivot.x, -e.pivot.y);
+      if (e.id === scene.interactableId) {
+        drawSprite(`${e.spriteId}_outline`, -e.pivot.x, -e.pivot.y);
+      }
     }
     if (DEBUG) {
       resetTransform();
