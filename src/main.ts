@@ -144,6 +144,7 @@ const enum Type {
 
 type CraftingEntry = {
   name: string;
+  description: string;
   spriteId: string;
   ingredients: Array<{ type: Type; amount: number }>;
   recipes: Array<Type>;
@@ -152,36 +153,42 @@ type CraftingEntry = {
 const CRAFTING_BOOK: Record<string, CraftingEntry> = {
   [Type.ITEM_TWIG]: {
     name: "Twig",
+    description: "",
     spriteId: "item_twig",
     ingredients: [],
     recipes: [],
   },
   [Type.ITEM_PEBBLE]: {
     name: "Pebble",
+    description: "",
     spriteId: "item_pebble",
     ingredients: [],
     recipes: [],
   },
   [Type.ITEM_LOG]: {
     name: "Log",
+    description: "",
     spriteId: "item_log",
     ingredients: [],
     recipes: [],
   },
   [Type.ITEM_STONE]: {
     name: "Stone",
+    description: "",
     spriteId: "item_stone",
     ingredients: [],
     recipes: [],
   },
   [Type.ITEM_PORTAL_SHARD]: {
     name: "Portal Shard",
+    description: "Open a portal",
     spriteId: "item_portal_shard",
     ingredients: [],
     recipes: [],
   },
   [Type.TOOL_AXE]: {
     name: "Axe",
+    description: "Chop trees",
     spriteId: "tool_axe",
     ingredients: [
       { type: Type.ITEM_TWIG, amount: 5 },
@@ -191,6 +198,7 @@ const CRAFTING_BOOK: Record<string, CraftingEntry> = {
   },
   [Type.TOOL_STONECUTTER]: {
     name: "Stonecutter",
+    description: "Cut stone",
     spriteId: "tool_stonecutter",
     ingredients: [
       { type: Type.ITEM_LOG, amount: 2 },
@@ -200,6 +208,7 @@ const CRAFTING_BOOK: Record<string, CraftingEntry> = {
   },
   [Type.TOOL_PICKAXE]: {
     name: "Pickaxe",
+    description: "Mine ores",
     spriteId: "tool_pickaxe",
     ingredients: [
       { type: Type.ITEM_LOG, amount: 5 },
@@ -209,6 +218,7 @@ const CRAFTING_BOOK: Record<string, CraftingEntry> = {
   },
   [Type.BUILDING_CRAFTING_TABLE]: {
     name: "Crafting Table",
+    description: "Craft things",
     spriteId: "building_crafting_table",
     ingredients: [
       { type: Type.ITEM_TWIG, amount: 10 },
@@ -218,6 +228,7 @@ const CRAFTING_BOOK: Record<string, CraftingEntry> = {
   },
   [Type.BUILDING_FURNACE]: {
     name: "Furnace",
+    description: "Heat things up",
     spriteId: "building_furnace",
     ingredients: [
       { type: Type.ITEM_STONE, amount: 20 },
@@ -227,6 +238,7 @@ const CRAFTING_BOOK: Record<string, CraftingEntry> = {
   },
   [Type.BUILDING_PORTAL_FOREST]: {
     name: "Forest Portal",
+    description: "Warp to the forest",
     spriteId: "building_portal",
     ingredients: [{ type: Type.ITEM_PORTAL_SHARD, amount: 1 }],
     recipes: [],
@@ -954,12 +966,6 @@ function renderCraftingRecipe(type: Type, anchorX: number, anchorY: number) {
   const sprite = getSprite("tooltip");
   const x = anchorX;
   const y = anchorY - sprite.h - 2;
-  let message = "Craftable";
-  let isError = false;
-  if (!isValid) {
-    message = "Not enough resources";
-    isError = true;
-  }
   resetTransform();
   translateTransform(x - sprite.w / 2 + 8, y);
   drawSprite("tooltip", 0, 0);
@@ -968,8 +974,8 @@ function renderCraftingRecipe(type: Type, anchorX: number, anchorY: number) {
   scaleTransform(1.25, 1.25);
   drawText(recipe.name, 0, 0);
   scaleTransform(0.8, 0.8);
-  translateTransform(0, 8);
-  drawText(message, 0, 0, isError ? "red" : "green");
+  translateTransform(0, 9);
+  drawText(recipe.description, 0, 0, "gray");
   translateTransform(0, 8);
   for (const ingredient of recipe.ingredients) {
     const item = CRAFTING_BOOK[ingredient.type];
