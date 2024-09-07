@@ -4,7 +4,6 @@ import {
   applyCameraTransform,
   AssetsManifest,
   clamp,
-  consumeInputDown,
   consumeInputPressed,
   copyVector,
   doesRectangleContain,
@@ -68,11 +67,11 @@ const ASSETS: AssetsManifest = {
         tree: [0, 16, 16, 32],
         rock: [16, 32, 16, 16],
         shrub: [32, 32, 16, 16],
-        stones: [48, 32, 16, 16],
+        flint: [48, 32, 16, 16],
         chest: [16, 16, 16, 16],
         item_twig: [0, 48, 16, 16],
         item_log: [16, 48, 16, 16],
-        item_pebble: [32, 48, 16, 16],
+        item_flint: [32, 48, 16, 16],
         item_stone: [48, 48, 16, 16],
         item_portal_shard: [64, 48, 16, 16],
         tool_axe: [0, 64, 16, 16],
@@ -97,7 +96,7 @@ const ASSETS: AssetsManifest = {
         tree_outline: [0, 16, 16, 32],
         rock_outline: [16, 32, 16, 16],
         shrub_outline: [32, 32, 16, 16],
-        stones_outline: [48, 32, 16, 16],
+        flint_outline: [48, 32, 16, 16],
         chest_outline: [16, 16, 16, 16],
         building_crafting_table_outline: [0, 96, 16, 16],
         building_furnace_outline: [16, 96, 16, 16],
@@ -121,13 +120,13 @@ const enum Type {
 
   PLAYER = "player",
   SHRUB = "shrub",
-  STONES = "stones",
+  FLINT = "flint",
   TREE = "tree",
   ROCK = "rock",
   CHEST = "chest",
 
   ITEM_TWIG = "item_twig",
-  ITEM_PEBBLE = "item_pebble",
+  ITEM_FLINT = "item_flint",
   ITEM_LOG = "item_log",
   ITEM_STONE = "item_stone",
   ITEM_PORTAL_SHARD = "item_portal_shard",
@@ -158,10 +157,10 @@ const CRAFTING_BOOK: Record<string, CraftingEntry> = {
     ingredients: [],
     recipes: [],
   },
-  [Type.ITEM_PEBBLE]: {
-    name: "Pebble",
+  [Type.ITEM_FLINT]: {
+    name: "Flint",
     description: "",
-    spriteId: "item_pebble",
+    spriteId: "item_flint",
     ingredients: [],
     recipes: [],
   },
@@ -192,7 +191,7 @@ const CRAFTING_BOOK: Record<string, CraftingEntry> = {
     spriteId: "tool_axe",
     ingredients: [
       { type: Type.ITEM_TWIG, amount: 5 },
-      { type: Type.ITEM_PEBBLE, amount: 5 },
+      { type: Type.ITEM_FLINT, amount: 5 },
     ],
     recipes: [],
   },
@@ -202,7 +201,7 @@ const CRAFTING_BOOK: Record<string, CraftingEntry> = {
     spriteId: "tool_stonecutter",
     ingredients: [
       { type: Type.ITEM_LOG, amount: 2 },
-      { type: Type.ITEM_PEBBLE, amount: 5 },
+      { type: Type.ITEM_FLINT, amount: 5 },
     ],
     recipes: [],
   },
@@ -222,7 +221,7 @@ const CRAFTING_BOOK: Record<string, CraftingEntry> = {
     spriteId: "building_crafting_table",
     ingredients: [
       { type: Type.ITEM_TWIG, amount: 10 },
-      { type: Type.ITEM_PEBBLE, amount: 10 },
+      { type: Type.ITEM_FLINT, amount: 10 },
     ],
     recipes: [Type.TOOL_AXE, Type.TOOL_STONECUTTER, Type.TOOL_PICKAXE],
   },
@@ -351,12 +350,12 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.isInteractable = true;
       break;
 
-    case Type.STONES:
-      e.spriteId = "stones";
+    case Type.FLINT:
+      e.spriteId = "flint";
       e.pivot.x = 8;
       e.pivot.y = 15;
       e.health = 1;
-      e.loot.push({ type: Type.ITEM_PEBBLE, chance: 1 }, { type: Type.ITEM_PEBBLE, chance: 0.5 });
+      e.loot.push({ type: Type.ITEM_FLINT, chance: 1 }, { type: Type.ITEM_FLINT, chance: 0.5 });
       e.isInteractable = true;
       break;
 
@@ -413,8 +412,8 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.pivot.y = 12;
       break;
 
-    case Type.ITEM_PEBBLE:
-      e.spriteId = "item_pebble";
+    case Type.ITEM_FLINT:
+      e.spriteId = "item_flint";
       e.state = State.ITEM_IDLE;
       e.pivot.x = 8;
       e.pivot.y = 12;
@@ -547,7 +546,7 @@ function createScene(id: SceneId) {
       {
         createEntity(scene, 160, 80, Type.BUILDING_PORTAL_HOME);
         createEntity(scene, 160, 90, Type.PLAYER);
-        const types = [Type.SHRUB, Type.STONES, Type.TREE, Type.ROCK];
+        const types = [Type.SHRUB, Type.FLINT, Type.TREE, Type.ROCK];
         for (let x = 0; x < WIDTH; x += TILE_SIZE) {
           for (let y = 0; y < HEIGHT; y += TILE_SIZE) {
             const type = pick(types);
@@ -580,7 +579,7 @@ const game: Game = {
   sceneId: SceneId.HOME,
   inventory: {
     [Type.ITEM_TWIG]: 20,
-    [Type.ITEM_PEBBLE]: 20,
+    [Type.ITEM_FLINT]: 20,
     [Type.ITEM_LOG]: 0,
     [Type.ITEM_STONE]: 0,
     [Type.ITEM_PORTAL_SHARD]: 0,
@@ -962,7 +961,6 @@ function renderCraftingMenu(scene: Scene) {
 
 function renderCraftingRecipe(type: Type, anchorX: number, anchorY: number) {
   const recipe = CRAFTING_BOOK[type];
-  const isValid = isCraftable(type);
   const sprite = getSprite("tooltip");
   const x = anchorX;
   const y = anchorY - sprite.h - 2;
@@ -1033,7 +1031,7 @@ run({
     width: WIDTH,
     height: HEIGHT,
     cameraSmoothing: 0.05,
-    background: "#1e1e1e",
+    background: "#808080",
   },
   setup,
   update,
