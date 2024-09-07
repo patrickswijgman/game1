@@ -4,6 +4,7 @@ import {
   applyCameraTransform,
   AssetsManifest,
   clamp,
+  consumeInputDown,
   consumeInputPressed,
   copyVector,
   doesRectangleContain,
@@ -20,12 +21,14 @@ import {
   loadAssets,
   normalizeVector,
   pick,
+  random,
   rect,
   Rectangle,
   remove,
   resetTimer,
   resetTransform,
   resetVector,
+  roll,
   rotateTransform,
   run,
   scaleTransform,
@@ -267,7 +270,7 @@ type Entity = {
   timer2: Timer;
   health: number;
   tool: Type;
-  loot: Array<Type>;
+  loot: Array<{ type: Type; chance: number }>;
   portalSceneId: SceneId;
   isRigid: boolean;
   isVisible: boolean;
@@ -332,7 +335,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.pivot.x = 8;
       e.pivot.y = 15;
       e.health = 1;
-      e.loot.push(Type.ITEM_TWIG);
+      e.loot.push({ type: Type.ITEM_TWIG, chance: 1 }, { type: Type.ITEM_TWIG, chance: 0.5 });
       e.isInteractable = true;
       break;
 
@@ -341,7 +344,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.pivot.x = 8;
       e.pivot.y = 15;
       e.health = 1;
-      e.loot.push(Type.ITEM_PEBBLE);
+      e.loot.push({ type: Type.ITEM_PEBBLE, chance: 1 }, { type: Type.ITEM_PEBBLE, chance: 0.5 });
       e.isInteractable = true;
       break;
 
@@ -360,7 +363,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.hitboxOffset.y = -25;
       e.health = 3;
       e.tool = Type.TOOL_AXE;
-      e.loot.push(Type.ITEM_LOG);
+      e.loot.push({ type: Type.ITEM_LOG, chance: 1 }, { type: Type.ITEM_LOG, chance: 0.5 });
       e.isInteractable = true;
       break;
 
@@ -374,7 +377,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.bodyOffset.y = -3;
       e.health = 5;
       e.tool = Type.TOOL_STONECUTTER;
-      e.loot.push(Type.ITEM_STONE);
+      e.loot.push({ type: Type.ITEM_STONE, chance: 1 }, { type: Type.ITEM_STONE, chance: 0.5 });
       e.isInteractable = true;
       break;
 
@@ -387,7 +390,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.bodyOffset.x = -4;
       e.bodyOffset.y = -2;
       e.health = 1;
-      e.loot.push(Type.ITEM_PORTAL_SHARD);
+      e.loot.push({ type: Type.ITEM_PORTAL_SHARD, chance: 1 });
       e.isInteractable = true;
       break;
 
@@ -660,12 +663,16 @@ function updateState(scene: Scene, e: Entity) {
         addVectorScaled(e.pos, e.vel, delta);
         updateNearestInteractable(scene, e);
         const interactable = scene.entities[scene.interactableId];
-        if (interactable && isInputPressed(InputCode.KEY_Z)) {
-          consumeInputPressed(InputCode.KEY_Z);
+        if (interactable) {
           if (interactable.isBuilding) {
-            setState(e, State.PLAYER_INTERACT_BUILDING);
+            if (isInputPressed(InputCode.KEY_Z)) {
+              consumeInputPressed(InputCode.KEY_Z);
+              setState(e, State.PLAYER_INTERACT_BUILDING);
+            }
           } else {
-            setState(e, State.PLAYER_INTERACT_RESOURCE);
+            if (isInputDown(InputCode.KEY_Z)) {
+              setState(e, State.PLAYER_INTERACT_RESOURCE);
+            }
           }
         }
       }
@@ -717,40 +724,42 @@ function updateState(scene: Scene, e: Entity) {
   }
 }
 
-function interactWithResource(scene: Scene, e: Entity) {
-  const completed = tickTimer(e.timer1, PLAYER_INTERACT_TIME);
-  const trigger = tickTimer(e.timer2, PLAYER_INTERACT_TIME / 2);
-  e.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", e.timer1);
+function interactWithResource(scene: Scene, player: Entity) {
+  const e = scene.entities[scene.interactableId];
+  const completed = tickTimer(player.timer1, PLAYER_INTERACT_TIME);
+  const trigger = tickTimer(player.timer2, PLAYER_INTERACT_TIME / 2);
+  player.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", player.timer1);
   if (trigger) {
-    const interactable = scene.entities[scene.interactableId];
-    interactable.health -= 1;
-    if (interactable.health <= 0) {
-      for (const lootId of interactable.loot) {
-        createEntity(scene, interactable.pos.x, interactable.pos.y, lootId);
+    e.health -= 1;
+    if (e.health <= 0) {
+      for (const loot of e.loot) {
+        if (roll(loot.chance)) {
+          createEntity(scene, e.pos.x + random(-4, 4), e.pos.y + random(-4, 4), loot.type);
+        }
       }
-      destroyEntity(scene, interactable.id);
+      destroyEntity(scene, e.id);
     }
   }
   return completed;
 }
 
 function interactWithBuilding(scene: Scene) {
-  const interactable = scene.entities[scene.interactableId];
-  scene.selectedMenuItemIndex = 0;
-  scene.selectedBuildingId = interactable.id;
-  scene.selectedBuildingRecipes.length = 0;
-  if (interactable.isPortal && game.buildings[interactable.type]) {
-    game.sceneId = interactable.portalSceneId;
+  const e = scene.entities[scene.interactableId];
+  if (e.isPortal && game.buildings[e.type]) {
+    game.sceneId = e.portalSceneId;
   } else {
-    if (game.buildings[interactable.type]) {
-      for (const type of CRAFTING_BOOK[interactable.type].recipes) {
-        if (!game.tools[type]) {
-          scene.selectedBuildingRecipes.push(type);
+    scene.selectedBuildingId = e.id;
+    scene.selectedBuildingRecipes.length = 0;
+    if (game.buildings[e.type]) {
+      for (const recipe of CRAFTING_BOOK[e.type].recipes) {
+        if (!game.tools[recipe]) {
+          scene.selectedBuildingRecipes.push(recipe);
         }
       }
     } else {
-      scene.selectedBuildingRecipes.push(interactable.type);
+      scene.selectedBuildingRecipes.push(e.type);
     }
+    scene.selectedMenuItemIndex = clamp(scene.selectedMenuItemIndex, 0, scene.selectedBuildingRecipes.length - 1);
     if (scene.selectedBuildingRecipes.length) {
       game.state = GameState.CRAFTING_MENU;
     } else {
@@ -824,10 +833,10 @@ function updateCraftingMenu(scene: Scene) {
     for (const ingredient of CRAFTING_BOOK[type].ingredients) {
       game.inventory[ingredient.type] -= ingredient.amount;
     }
-    scene.selectedBuildingRecipes.splice(scene.selectedMenuItemIndex, 1);
-    scene.selectedMenuItemIndex = clamp(scene.selectedMenuItemIndex, 0, scene.selectedBuildingRecipes.length - 1);
-    if (!building.isPortal && game.buildings[type]) {
+    if (!building.isPortal) {
       interactWithBuilding(scene);
+    } else {
+      game.state = GameState.NORMAL;
     }
   }
 }
@@ -892,7 +901,7 @@ function renderEntity(scene: Scene, e: Entity) {
           if (e.id === scene.interactableId) {
             drawSprite("icon_construct", -8, 0);
           }
-          setAlpha(0.5);
+          setAlpha(0.33);
         } else {
           setAlpha(e.alpha);
         }
