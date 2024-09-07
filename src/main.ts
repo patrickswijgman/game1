@@ -101,7 +101,6 @@ const ASSETS: AssetsManifest = {
         building_crafting_table_outline: [0, 96, 16, 16],
         building_furnace_outline: [16, 96, 16, 16],
         building_portal_outline: [32, 80, 32, 32],
-        tooltip_outline: [0, 144, 80, 64],
       },
     },
   },
@@ -969,7 +968,6 @@ function renderCraftingRecipe(type: Type, anchorX: number, anchorY: number) {
   resetTransform();
   translateTransform(x - sprite.w / 2 + 8, y);
   drawSprite("tooltip", 0, 0);
-  drawSprite("tooltip_outline", 0, 0);
   translateTransform(4, 4);
   scaleTransform(1.25, 1.25);
   drawText(recipe.name, 0, 0);
