@@ -51,10 +51,10 @@ const WIDTH = 320;
 const HEIGHT = 180;
 const TILE_SIZE = 20;
 const PLAYER_SPEED = 1;
-const PLAYER_RANGE = 10;
+const PLAYER_INTERACT_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
+const PLAYER_PICKUP_RANGE = 20;
 const ITEM_SEEK_TIME = 200;
-const ITEM_SEEK_DELAY = 500;
 const MAX_ITEM_COUNT = 99;
 
 const ASSETS: AssetsManifest = {
@@ -71,6 +71,7 @@ const ASSETS: AssetsManifest = {
         item_log: [16, 48, 16, 16],
         item_pebble: [32, 48, 16, 16],
         item_stone: [48, 48, 16, 16],
+        item_portal_shard: [64, 48, 16, 16],
         tool_axe: [0, 64, 16, 16],
         tool_stonecutter: [16, 64, 16, 16],
         tool_pickaxe: [32, 64, 16, 16],
@@ -123,6 +124,7 @@ const enum Type {
   ITEM_PEBBLE = "item_pebble",
   ITEM_LOG = "item_log",
   ITEM_STONE = "item_stone",
+  ITEM_PORTAL_SHARD = "item_portal_shard",
 
   TOOL_AXE = "tool_axe",
   TOOL_STONECUTTER = "tool_stonecutter",
@@ -163,6 +165,12 @@ const CRAFTING_BOOK: Record<string, CraftingEntry> = {
   [Type.ITEM_STONE]: {
     name: "Stone",
     spriteId: "item_stone",
+    ingredients: [],
+    recipes: [],
+  },
+  [Type.ITEM_PORTAL_SHARD]: {
+    name: "Portal Shard",
+    spriteId: "item_portal_shard",
     ingredients: [],
     recipes: [],
   },
@@ -214,10 +222,7 @@ const CRAFTING_BOOK: Record<string, CraftingEntry> = {
   [Type.BUILDING_PORTAL_FOREST]: {
     name: "Forest Portal",
     spriteId: "building_portal",
-    ingredients: [
-      { type: Type.ITEM_TWIG, amount: 10 },
-      { type: Type.ITEM_PEBBLE, amount: 10 },
-    ],
+    ingredients: [{ type: Type.ITEM_PORTAL_SHARD, amount: 1 }],
     recipes: [],
   },
 };
@@ -374,28 +379,35 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.spriteId = "item_twig";
       e.state = State.ITEM_IDLE;
       e.pivot.x = 8;
-      e.pivot.y = 8;
+      e.pivot.y = 12;
       break;
 
     case Type.ITEM_PEBBLE:
       e.spriteId = "item_pebble";
       e.state = State.ITEM_IDLE;
       e.pivot.x = 8;
-      e.pivot.y = 8;
+      e.pivot.y = 12;
       break;
 
     case Type.ITEM_LOG:
       e.spriteId = "item_log";
       e.state = State.ITEM_IDLE;
       e.pivot.x = 8;
-      e.pivot.y = 8;
+      e.pivot.y = 12;
       break;
 
     case Type.ITEM_STONE:
       e.spriteId = "item_stone";
       e.state = State.ITEM_IDLE;
       e.pivot.x = 8;
-      e.pivot.y = 8;
+      e.pivot.y = 12;
+      break;
+
+    case Type.ITEM_PORTAL_SHARD:
+      e.spriteId = "item_portal_shard";
+      e.state = State.ITEM_IDLE;
+      e.pivot.x = 8;
+      e.pivot.y = 12;
       break;
 
     case Type.BUILDING_CRAFTING_TABLE:
@@ -500,6 +512,7 @@ function createScene(id: SceneId) {
 
     case SceneId.FOREST:
       {
+        createEntity(scene, 160, 80, Type.BUILDING_PORTAL_HOME);
         createEntity(scene, 160, 90, Type.PLAYER);
         const types = [Type.SHRUB, Type.STONES, Type.TREE, Type.ROCK];
         for (let x = 0; x < WIDTH; x += TILE_SIZE) {
@@ -536,6 +549,7 @@ const game: Game = {
     [Type.ITEM_PEBBLE]: 20,
     [Type.ITEM_LOG]: 0,
     [Type.ITEM_STONE]: 0,
+    [Type.ITEM_PORTAL_SHARD]: 0,
   },
   tools: {
     [Type.TOOL_AXE]: false,
@@ -545,6 +559,7 @@ const game: Game = {
   buildings: {
     [Type.BUILDING_CRAFTING_TABLE]: false,
     [Type.BUILDING_FURNACE]: false,
+    [Type.BUILDING_PORTAL_HOME]: true,
     [Type.BUILDING_PORTAL_FOREST]: false,
   },
   state: GameState.NORMAL,
@@ -626,7 +641,8 @@ function updateState(scene: Scene, e: Entity) {
         addVectorScaled(e.pos, e.vel, delta);
         updateNearestInteractable(scene, e);
         const interactable = scene.entities[scene.interactableId];
-        if (interactable && isInputDown(InputCode.KEY_Z)) {
+        if (interactable && isInputPressed(InputCode.KEY_Z)) {
+          consumeInputPressed(InputCode.KEY_Z);
           if (interactable.isBuilding) {
             setState(e, State.PLAYER_INTERACT_BUILDING);
           } else {
@@ -648,8 +664,12 @@ function updateState(scene: Scene, e: Entity) {
       break;
 
     case State.ITEM_IDLE:
-      if (tickTimer(e.timer1, ITEM_SEEK_DELAY)) {
-        setState(e, State.ITEM_SEEK);
+      {
+        const player = scene.entities[scene.playerId];
+        const distance = getVectorDistance(e.pos, player.pos);
+        if (distance < PLAYER_PICKUP_RANGE) {
+          setState(e, State.ITEM_SEEK);
+        }
       }
       break;
 
@@ -700,7 +720,6 @@ function interactWithBuilding(scene: Scene) {
   scene.selectedMenuItemIndex = 0;
   scene.selectedBuildingId = interactable.id;
   scene.selectedBuildingRecipes.length = 0;
-
   if (interactable.isPortal && game.buildings[interactable.type]) {
     game.sceneId = interactable.portalSceneId;
   } else {
@@ -774,7 +793,6 @@ function updateCraftingMenu(scene: Scene) {
   }
   if (isInputPressed(InputCode.KEY_Z) && isCraftable(type)) {
     consumeInputPressed(InputCode.KEY_Z);
-    consumeInputDown(InputCode.KEY_Z);
     if (type in game.tools) {
       game.tools[type] = true;
     }
@@ -801,7 +819,7 @@ function updateNearestInteractable(scene: Scene, player: Entity) {
   for (const id of scene.active) {
     const target = scene.entities[id];
     const distance = getVectorDistance(player.pos, target.pos);
-    if (target.isInteractable && distance < PLAYER_RANGE && distance < smallestDistance) {
+    if (target.isInteractable && distance < PLAYER_INTERACT_RANGE && distance < smallestDistance) {
       if (target.tool && !game.tools[target.tool]) {
         continue;
       }
@@ -920,7 +938,7 @@ function renderCraftingRecipe(type: Type, anchorX: number, anchorY: number) {
     const count = game.inventory[ingredient.type];
     const color = count >= ingredient.amount ? "white" : "red";
     drawSprite(item.spriteId, -2, -4);
-    drawText(item.name, 12, 2, color);
+    drawText(item.name, 14, 2, color);
     drawText(`${count}/${ingredient.amount}`, sprite.w - 10, 2, color, "right");
     translateTransform(0, 10);
   }
