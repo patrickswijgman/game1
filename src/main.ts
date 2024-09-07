@@ -115,6 +115,8 @@ const ASSETS: AssetsManifest = {
   sounds: {},
 };
 
+type Table<T> = Record<string, T>;
+
 const enum Type {
   NONE = "",
 
@@ -149,7 +151,7 @@ type CraftingEntry = {
   recipes: Array<Type>;
 };
 
-const CRAFTING_BOOK: Record<string, CraftingEntry> = {
+const CRAFTING_BOOK: Table<CraftingEntry> = {
   [Type.ITEM_TWIG]: {
     name: "Twig",
     description: "",
@@ -508,7 +510,7 @@ const enum SceneId {
 }
 
 type Scene = {
-  entities: Record<string, Entity>;
+  entities: Table<Entity>;
   active: string[];
   render: string[];
   destroyed: string[];
@@ -566,11 +568,11 @@ const enum GameState {
 }
 
 type Game = {
-  scenes: Record<string, Scene>;
+  scenes: Table<Scene>;
   sceneId: SceneId;
-  inventory: Record<string, number>;
-  tools: Record<string, boolean>;
-  buildings: Record<string, boolean>;
+  inventory: Table<number>;
+  tools: Table<boolean>;
+  buildings: Table<boolean>;
   state: GameState;
 };
 
