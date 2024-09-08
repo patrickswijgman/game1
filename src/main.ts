@@ -683,9 +683,9 @@ function playerMove(e: Entity, delta: number) {
     normalizeVector(e.vel);
     scaleVector(e.vel, PLAYER_SPEED);
     addVectorScaled(e.pos, e.vel, delta);
-    e.state = State.PLAYER_WALK;
+    setState(e, State.PLAYER_WALK);
   } else {
-    e.state = State.PLAYER_IDLE;
+    setState(e, State.PLAYER_IDLE);
   }
 }
 
