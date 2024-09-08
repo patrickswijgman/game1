@@ -14,6 +14,7 @@ import {
   getSettings,
   getSprite,
   getVectorDistance,
+  getVectorLength,
   InputCode,
   isInputDown,
   isInputPressed,
@@ -252,7 +253,8 @@ function isCraftable(type: Type) {
 
 const enum State {
   NONE = "",
-  PLAYER_CONTROL = "player_control",
+  PLAYER_IDLE = "player_idle",
+  PLAYER_WALK = "player_walk",
   PLAYER_INTERACT_RESOURCE = "player_interact_resource",
   PLAYER_INTERACT_BUILDING = "player_interact_building",
   ITEM_IDLE = "item_idle",
@@ -330,7 +332,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
   };
   switch (type) {
     case Type.PLAYER:
-      e.state = State.PLAYER_CONTROL;
+      e.state = State.PLAYER_IDLE;
       e.spriteId = "player";
       e.pivot.x = 8;
       e.pivot.y = 15;
@@ -660,56 +662,77 @@ function update() {
   renderMetrics();
 }
 
+function playerMove(e: Entity, delta: number) {
+  resetVector(e.vel);
+  if (isInputDown(InputCode.KEY_LEFT)) {
+    e.vel.x -= 1;
+    e.isFlipped = true;
+  }
+  if (isInputDown(InputCode.KEY_RIGHT)) {
+    e.vel.x += 1;
+    e.isFlipped = false;
+  }
+  if (isInputDown(InputCode.KEY_UP)) {
+    e.vel.y -= 1;
+  }
+  if (isInputDown(InputCode.KEY_DOWN)) {
+    e.vel.y += 1;
+  }
+
+  if (getVectorLength(e.vel) > 0) {
+    normalizeVector(e.vel);
+    scaleVector(e.vel, PLAYER_SPEED);
+    addVectorScaled(e.pos, e.vel, delta);
+    e.state = State.PLAYER_WALK;
+  } else {
+    e.state = State.PLAYER_IDLE;
+  }
+}
+
+function playerInteract(scene: Scene, e: Entity) {
+  updateNearestInteractable(scene, e);
+  const interactable = scene.entities[scene.interactableId];
+  if (interactable) {
+    if (interactable.isBuilding) {
+      if (isInputPressed(InputCode.KEY_Z)) {
+        consumeInputPressed(InputCode.KEY_Z);
+        setState(e, State.PLAYER_INTERACT_BUILDING);
+      }
+    } else {
+      if (isInputDown(InputCode.KEY_Z)) {
+        setState(e, State.PLAYER_INTERACT_RESOURCE);
+      }
+    }
+  }
+}
+
 function updateState(scene: Scene, e: Entity) {
   const { delta } = getEngineState();
 
   switch (e.state) {
-    case State.PLAYER_CONTROL:
-      {
-        resetVector(e.vel);
-        if (isInputDown(InputCode.KEY_LEFT)) {
-          e.vel.x -= 1;
-          e.isFlipped = true;
-        }
-        if (isInputDown(InputCode.KEY_RIGHT)) {
-          e.vel.x += 1;
-          e.isFlipped = false;
-        }
-        if (isInputDown(InputCode.KEY_UP)) {
-          e.vel.y -= 1;
-        }
-        if (isInputDown(InputCode.KEY_DOWN)) {
-          e.vel.y += 1;
-        }
-        normalizeVector(e.vel);
-        scaleVector(e.vel, PLAYER_SPEED);
-        addVectorScaled(e.pos, e.vel, delta);
-        updateNearestInteractable(scene, e);
-        const interactable = scene.entities[scene.interactableId];
-        if (interactable) {
-          if (interactable.isBuilding) {
-            if (isInputPressed(InputCode.KEY_Z)) {
-              consumeInputPressed(InputCode.KEY_Z);
-              setState(e, State.PLAYER_INTERACT_BUILDING);
-            }
-          } else {
-            if (isInputDown(InputCode.KEY_Z)) {
-              setState(e, State.PLAYER_INTERACT_RESOURCE);
-            }
-          }
-        }
-      }
+    case State.PLAYER_IDLE:
+      playerMove(e, delta);
+      playerInteract(scene, e);
+      tickTimer(e.timer1, Infinity);
+      e.scale = tween(1, 1.1, 2000, "easeInOutSine", e.timer1);
+      break;
+
+    case State.PLAYER_WALK:
+      playerMove(e, delta);
+      playerInteract(scene, e);
+      tickTimer(e.timer1, Infinity);
+      e.offset.y = -tween(0, 1, 100, "easeInOutSine", e.timer1);
       break;
 
     case State.PLAYER_INTERACT_RESOURCE:
       if (interactWithResource(scene, e)) {
-        setState(e, State.PLAYER_CONTROL);
+        setState(e, State.PLAYER_IDLE);
       }
       break;
 
     case State.PLAYER_INTERACT_BUILDING:
       interactWithBuilding(scene);
-      setState(e, State.PLAYER_CONTROL);
+      setState(e, State.PLAYER_IDLE);
       break;
 
     case State.ITEM_IDLE:
