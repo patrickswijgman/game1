@@ -35,6 +35,7 @@ import {
   scaleTransform,
   scaleVector,
   setAlpha,
+  setBackgroundColor,
   setCameraPosition,
   setFont,
   tickTimer,
@@ -624,8 +625,6 @@ function update() {
 
   const scene = game.scenes[game.sceneId];
   const player = scene.entities[scene.playerId];
-  const settings = getSettings();
-  settings.background = scene.background;
 
   switch (game.state) {
     case GameState.NORMAL:
@@ -645,6 +644,7 @@ function update() {
   updateCamera(player.pos.x, player.pos.y);
   cleanUpEntities(scene);
   depthSortEntities(scene, scene.render);
+  setBackgroundColor(scene.background);
 
   for (const id of scene.render) {
     const e = scene.entities[id];
