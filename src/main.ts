@@ -11,6 +11,7 @@ import {
   drawSprite,
   drawText,
   getEngineState,
+  getSettings,
   getSprite,
   getVectorDistance,
   InputCode,
@@ -518,6 +519,7 @@ type Scene = {
   selectedMenuItemIndex: number;
   selectedBuildingId: string;
   selectedBuildingRecipes: Array<Type>;
+  background: string;
 };
 
 function createScene(id: SceneId) {
@@ -531,10 +533,12 @@ function createScene(id: SceneId) {
     selectedMenuItemIndex: 0,
     selectedBuildingId: "",
     selectedBuildingRecipes: [],
+    background: "",
   };
   switch (id) {
     case SceneId.HOME:
       {
+        scene.background = "#808080";
         createEntity(scene, 160, 90, Type.PLAYER);
         createEntity(scene, 120, 80, Type.BUILDING_CRAFTING_TABLE);
         createEntity(scene, 140, 80, Type.BUILDING_FURNACE);
@@ -545,6 +549,7 @@ function createScene(id: SceneId) {
 
     case SceneId.FOREST:
       {
+        scene.background = "#3c362d";
         createEntity(scene, 160, 80, Type.BUILDING_PORTAL_HOME);
         createEntity(scene, 160, 90, Type.PLAYER);
         const types = [Type.SHRUB, Type.FLINT, Type.TREE, Type.ROCK];
@@ -612,6 +617,9 @@ function update() {
   }
 
   const scene = game.scenes[game.sceneId];
+  const player = scene.entities[scene.playerId];
+  const settings = getSettings();
+  settings.background = scene.background;
 
   switch (game.state) {
     case GameState.NORMAL:
@@ -628,7 +636,6 @@ function update() {
       break;
   }
 
-  const player = scene.entities[scene.playerId];
   updateCamera(player.pos.x, player.pos.y);
   cleanUpEntities(scene);
   depthSortEntities(scene, scene.render);
@@ -1031,7 +1038,6 @@ run({
     width: WIDTH,
     height: HEIGHT,
     cameraSmoothing: 0.05,
-    background: "#808080",
   },
   setup,
   update,
