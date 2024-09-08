@@ -281,6 +281,7 @@ type Entity = {
   alpha: number;
   timer1: Timer;
   timer2: Timer;
+  duration: number;
   health: number;
   tool: Type;
   loot: Array<{ type: Type; chance: number }>;
@@ -315,6 +316,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     alpha: 1,
     timer1: timer(),
     timer2: timer(),
+    duration: 0,
     health: 0,
     tool: Type.NONE,
     loot: [],
@@ -350,6 +352,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.health = 1;
       e.loot.push({ type: Type.ITEM_TWIG, chance: 1 }, { type: Type.ITEM_TWIG, chance: 0.5 });
       e.isInteractable = true;
+      e.duration = random(750, 1000);
       break;
 
     case Type.FLINT:
@@ -378,6 +381,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.tool = Type.TOOL_AXE;
       e.loot.push({ type: Type.ITEM_LOG, chance: 1 }, { type: Type.ITEM_LOG, chance: 0.5 });
       e.isInteractable = true;
+      e.duration = random(1500, 2000);
       break;
 
     case Type.ROCK:
@@ -732,13 +736,9 @@ function updateState(scene: Scene, e: Entity) {
       break;
 
     case State.SHRUB_IDLE:
-      tickTimer(e.timer1, Infinity);
-      e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer1);
-      break;
-
     case State.TREE_IDLE:
       tickTimer(e.timer1, Infinity);
-      e.angle = tween(-2, 2, 2000, "easeInOutSine", e.timer1);
+      e.angle = tween(-2, 2, e.duration, "easeInOutSine", e.timer1);
       break;
   }
 }
