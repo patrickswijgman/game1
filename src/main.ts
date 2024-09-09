@@ -58,7 +58,7 @@ const TILE_SIZE = 20;
 const PLAYER_SPEED = 1;
 const PLAYER_INTERACT_RANGE = 10;
 const PLAYER_INTERACT_TIME = 200;
-const PLAYER_PICKUP_RANGE = 20;
+const ITEM_DELAY_TIME = 100;
 const ITEM_SEEK_TIME = 200;
 const MAX_ITEM_COUNT = 99;
 
@@ -712,12 +712,8 @@ function updateState(scene: Scene, e: Entity) {
       break;
 
     case State.ITEM_IDLE:
-      {
-        const player = scene.entities[scene.playerId];
-        const distance = getVectorDistance(e.pos, player.pos);
-        if (distance < PLAYER_PICKUP_RANGE) {
-          setState(e, State.ITEM_SEEK);
-        }
+      if (tickTimer(e.timer1, ITEM_DELAY_TIME)) {
+        setState(e, State.ITEM_SEEK);
       }
       break;
 
