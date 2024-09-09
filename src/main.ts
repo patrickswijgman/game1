@@ -85,9 +85,10 @@ const ASSETS: AssetsManifest = {
         building_crafting_table: [0, 96, 16, 16],
         building_furnace: [16, 96, 16, 16],
         building_portal: [32, 80, 32, 32],
-        box: [0, 128, 16, 16],
-        box_selection: [16, 128, 16, 16],
-        tooltip: [0, 144, 80, 64],
+        tile_grass: [0, 128, 16, 16],
+        box: [0, 176, 16, 16],
+        box_selection: [16, 176, 16, 16],
+        tooltip: [0, 192, 80, 64],
       },
     },
   },
@@ -118,7 +119,7 @@ const ASSETS: AssetsManifest = {
   sounds: {},
 };
 
-type Table<T> = Record<string, T>;
+type Dict<T> = Record<string, T>;
 
 const enum Type {
   NONE = "",
@@ -146,111 +147,104 @@ const enum Type {
   BUILDING_PORTAL_FOREST = "building_portal_forest",
 }
 
-type CraftingEntry = {
+type Item = {
   name: string;
-  description: string;
   spriteId: string;
-  ingredients: Array<{ type: Type; amount: number }>;
-  recipes: Array<Type>;
 };
 
-const CRAFTING_BOOK: Table<CraftingEntry> = {
+const ITEMS: Dict<Item> = {
   [Type.ITEM_TWIG]: {
     name: "Twig",
-    description: "",
     spriteId: "item_twig",
-    ingredients: [],
-    recipes: [],
   },
   [Type.ITEM_FLINT]: {
     name: "Flint",
-    description: "",
     spriteId: "item_flint",
-    ingredients: [],
-    recipes: [],
   },
   [Type.ITEM_LOG]: {
     name: "Log",
-    description: "",
     spriteId: "item_log",
-    ingredients: [],
-    recipes: [],
   },
   [Type.ITEM_STONE]: {
     name: "Stone",
-    description: "",
     spriteId: "item_stone",
-    ingredients: [],
-    recipes: [],
   },
   [Type.ITEM_PORTAL_SHARD]: {
     name: "Portal Shard",
-    description: "Open a portal",
     spriteId: "item_portal_shard",
-    ingredients: [],
-    recipes: [],
   },
+};
+
+type Recipe = {
+  name: string;
+  description: string;
+  spriteId: string;
+  ingredients: Array<{ item: Type; amount: number }>;
+  unlocks: Array<Type>;
+};
+
+const CRAFTING_BOOK: Dict<Recipe> = {
   [Type.TOOL_AXE]: {
     name: "Axe",
     description: "Chop trees",
     spriteId: "tool_axe",
     ingredients: [
-      { type: Type.ITEM_TWIG, amount: 5 },
-      { type: Type.ITEM_FLINT, amount: 5 },
+      { item: Type.ITEM_TWIG, amount: 5 },
+      { item: Type.ITEM_FLINT, amount: 5 },
     ],
-    recipes: [],
+    unlocks: [],
   },
   [Type.TOOL_STONECUTTER]: {
     name: "Stonecutter",
     description: "Cut stone",
     spriteId: "tool_stonecutter",
     ingredients: [
-      { type: Type.ITEM_LOG, amount: 2 },
-      { type: Type.ITEM_FLINT, amount: 5 },
+      { item: Type.ITEM_LOG, amount: 2 },
+      { item: Type.ITEM_FLINT, amount: 5 },
     ],
-    recipes: [],
+    unlocks: [],
   },
   [Type.TOOL_PICKAXE]: {
     name: "Pickaxe",
     description: "Mine ores",
     spriteId: "tool_pickaxe",
     ingredients: [
-      { type: Type.ITEM_LOG, amount: 5 },
-      { type: Type.ITEM_STONE, amount: 5 },
+      { item: Type.ITEM_LOG, amount: 5 },
+      { item: Type.ITEM_STONE, amount: 5 },
     ],
-    recipes: [],
+    unlocks: [],
   },
   [Type.BUILDING_CRAFTING_TABLE]: {
     name: "Crafting Table",
     description: "Craft things",
     spriteId: "building_crafting_table",
     ingredients: [
-      { type: Type.ITEM_TWIG, amount: 10 },
-      { type: Type.ITEM_FLINT, amount: 10 },
+      { item: Type.ITEM_TWIG, amount: 10 },
+      { item: Type.ITEM_FLINT, amount: 10 },
     ],
-    recipes: [Type.TOOL_AXE, Type.TOOL_STONECUTTER, Type.TOOL_PICKAXE],
+    unlocks: [Type.TOOL_AXE, Type.TOOL_STONECUTTER, Type.TOOL_PICKAXE],
   },
   [Type.BUILDING_FURNACE]: {
     name: "Furnace",
     description: "Heat things up",
     spriteId: "building_furnace",
     ingredients: [
-      { type: Type.ITEM_STONE, amount: 20 },
-      { type: Type.ITEM_LOG, amount: 5 },
+      { item: Type.ITEM_STONE, amount: 20 },
+      { item: Type.ITEM_LOG, amount: 5 },
     ],
-    recipes: [],
+    unlocks: [],
   },
   [Type.BUILDING_PORTAL_FOREST]: {
     name: "Forest Portal",
     description: "Warp to the forest",
     spriteId: "building_portal",
-    ingredients: [{ type: Type.ITEM_PORTAL_SHARD, amount: 1 }],
-    recipes: [],
+    ingredients: [{ item: Type.ITEM_PORTAL_SHARD, amount: 1 }],
+    unlocks: [],
   },
 };
 
 function isCraftable(type: Type) {
-  return CRAFTING_BOOK[type].ingredients.every((ingredient) => game.inventory[ingredient.type] >= ingredient.amount);
+  return CRAFTING_BOOK[type].ingredients.every((ingredient) => game.inventory[ingredient.item] >= ingredient.amount);
 }
 
 const enum State {
@@ -518,7 +512,7 @@ const enum SceneId {
 }
 
 type Scene = {
-  entities: Table<Entity>;
+  entities: Dict<Entity>;
   active: string[];
   render: string[];
   destroyed: string[];
@@ -527,7 +521,6 @@ type Scene = {
   selectedMenuItemIndex: number;
   selectedBuildingId: string;
   selectedBuildingRecipes: Array<Type>;
-  background: string;
 };
 
 function createScene(id: SceneId) {
@@ -541,12 +534,10 @@ function createScene(id: SceneId) {
     selectedMenuItemIndex: 0,
     selectedBuildingId: "",
     selectedBuildingRecipes: [],
-    background: "",
   };
   switch (id) {
     case SceneId.HOME:
       {
-        scene.background = "#808080";
         createEntity(scene, 160, 90, Type.PLAYER);
         createEntity(scene, 120, 80, Type.BUILDING_CRAFTING_TABLE);
         createEntity(scene, 140, 80, Type.BUILDING_FURNACE);
@@ -557,7 +548,6 @@ function createScene(id: SceneId) {
 
     case SceneId.FOREST:
       {
-        scene.background = "#3c362d";
         createEntity(scene, 160, 80, Type.BUILDING_PORTAL_HOME);
         createEntity(scene, 160, 90, Type.PLAYER);
         const types = [Type.SHRUB, Type.FLINT, Type.TREE, Type.ROCK];
@@ -580,11 +570,11 @@ const enum GameState {
 }
 
 type Game = {
-  scenes: Table<Scene>;
+  scenes: Dict<Scene>;
   sceneId: SceneId;
-  inventory: Table<number>;
-  tools: Table<boolean>;
-  buildings: Table<boolean>;
+  inventory: Dict<number>;
+  tools: Dict<boolean>;
+  buildings: Dict<boolean>;
   state: GameState;
 };
 
@@ -614,10 +604,13 @@ const game: Game = {
 
 async function setup() {
   await loadAssets(ASSETS);
-  setFont("default");
+
   createScene(SceneId.HOME);
   createScene(SceneId.FOREST);
+
   setCameraSmoothing(0.05);
+  setBackgroundColor("#808080");
+  setFont("default");
 }
 
 function update() {
@@ -779,7 +772,7 @@ function interactWithBuilding(scene: Scene) {
     scene.selectedBuildingId = e.id;
     scene.selectedBuildingRecipes.length = 0;
     if (game.buildings[e.type]) {
-      for (const recipe of CRAFTING_BOOK[e.type].recipes) {
+      for (const recipe of CRAFTING_BOOK[e.type].unlocks) {
         if (!game.tools[recipe]) {
           scene.selectedBuildingRecipes.push(recipe);
         }
@@ -859,7 +852,7 @@ function updateCraftingMenu(scene: Scene) {
       game.inventory[type] += 1;
     }
     for (const ingredient of CRAFTING_BOOK[type].ingredients) {
-      game.inventory[ingredient.type] -= ingredient.amount;
+      game.inventory[ingredient.item] -= ingredient.amount;
     }
     if (!building.isPortal) {
       interactWithBuilding(scene);
@@ -915,7 +908,10 @@ function setState(e: Entity, state: State) {
 function render() {
   const scene = game.scenes[game.sceneId];
 
-  setBackgroundColor(scene.background);
+  applyCameraTransform();
+  scaleTransform(30, 30);
+  drawSprite("tile_grass", 0, 0);
+
   depthSortEntities(scene, scene.render);
 
   for (const id of scene.render) {
@@ -951,7 +947,7 @@ function renderEntity(scene: Scene, e: Entity) {
           if (e.id === scene.interactableId) {
             drawSprite("icon_construct", -8, 0);
           }
-          setAlpha(0.33);
+          setAlpha(0.5);
         } else {
           setAlpha(e.alpha);
         }
@@ -1014,8 +1010,8 @@ function renderCraftingRecipe(type: Type, anchorX: number, anchorY: number) {
   drawText(recipe.description, 0, 0, "gray");
   translateTransform(0, 8);
   for (const ingredient of recipe.ingredients) {
-    const item = CRAFTING_BOOK[ingredient.type];
-    const count = game.inventory[ingredient.type];
+    const item = ITEMS[ingredient.item];
+    const count = game.inventory[ingredient.item];
     const color = count >= ingredient.amount ? "white" : "red";
     drawSprite(item.spriteId, -2, -4);
     drawText(item.name, 14, 2, color);
@@ -1032,7 +1028,7 @@ function renderInventory() {
   for (const type in game.inventory) {
     const count = game.inventory[type];
     if (count) {
-      const item = CRAFTING_BOOK[type];
+      const item = ITEMS[type];
       drawSprite("box", 0, 0);
       drawSprite(item.spriteId, 0, 0);
       drawText(count.toString(), 14, 10, "white", "right");
