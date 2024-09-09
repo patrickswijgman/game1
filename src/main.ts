@@ -10,8 +10,8 @@ import {
   drawRectInstance,
   drawSprite,
   drawText,
-  getEngineState,
-  getSettings,
+  getDelta,
+  getFramePerSecond,
   getSprite,
   getVectorDistance,
   getVectorLength,
@@ -37,6 +37,7 @@ import {
   setAlpha,
   setBackgroundColor,
   setCameraPosition,
+  setCameraSmoothing,
   setFont,
   tickTimer,
   timer,
@@ -616,6 +617,7 @@ async function setup() {
   setFont("default");
   createScene(SceneId.HOME);
   createScene(SceneId.FOREST);
+  setCameraSmoothing(0.05);
 }
 
 function update() {
@@ -643,26 +645,9 @@ function update() {
 
   updateCamera(player.pos.x, player.pos.y);
   cleanUpEntities(scene);
-  depthSortEntities(scene, scene.render);
-  setBackgroundColor(scene.background);
-
-  for (const id of scene.render) {
-    const e = scene.entities[id];
-    renderEntity(scene, e);
-  }
-
-  switch (game.state) {
-    case GameState.CRAFTING_MENU:
-      renderCraftingMenu(scene);
-      break;
-  }
-
-  renderInventory();
-  renderToolBelt();
-  renderMetrics();
 }
 
-function playerMove(e: Entity, delta: number) {
+function playerMove(e: Entity) {
   resetVector(e.vel);
   if (isInputDown(InputCode.KEY_LEFT)) {
     e.vel.x -= 1;
@@ -682,7 +667,7 @@ function playerMove(e: Entity, delta: number) {
   if (getVectorLength(e.vel) > 0) {
     normalizeVector(e.vel);
     scaleVector(e.vel, PLAYER_SPEED);
-    addVectorScaled(e.pos, e.vel, delta);
+    addVectorScaled(e.pos, e.vel, getDelta());
     setState(e, State.PLAYER_WALK);
   } else {
     setState(e, State.PLAYER_IDLE);
@@ -707,18 +692,16 @@ function playerInteract(scene: Scene, e: Entity) {
 }
 
 function updateState(scene: Scene, e: Entity) {
-  const { delta } = getEngineState();
-
   switch (e.state) {
     case State.PLAYER_IDLE:
-      playerMove(e, delta);
+      playerMove(e);
       playerInteract(scene, e);
       tickTimer(e.timer1, Infinity);
       e.scale = tween(1, 1.1, 2000, "easeInOutSine", e.timer1);
       break;
 
     case State.PLAYER_WALK:
-      playerMove(e, delta);
+      playerMove(e);
       playerInteract(scene, e);
       tickTimer(e.timer1, Infinity);
       e.offset.y = -tween(0, 1, 100, "easeInOutSine", e.timer1);
@@ -789,6 +772,9 @@ function interactWithBuilding(scene: Scene) {
   const e = scene.entities[scene.interactableId];
   if (e.isPortal && game.buildings[e.type]) {
     game.sceneId = e.portalSceneId;
+    const scene = game.scenes[game.sceneId];
+    const player = scene.entities[scene.playerId];
+    setCameraPosition(player.pos.x, player.pos.y);
   } else {
     scene.selectedBuildingId = e.id;
     scene.selectedBuildingRecipes.length = 0;
@@ -926,6 +912,28 @@ function setState(e: Entity, state: State) {
   }
 }
 
+function render() {
+  const scene = game.scenes[game.sceneId];
+
+  setBackgroundColor(scene.background);
+  depthSortEntities(scene, scene.render);
+
+  for (const id of scene.render) {
+    const e = scene.entities[id];
+    renderEntity(scene, e);
+  }
+
+  switch (game.state) {
+    case GameState.CRAFTING_MENU:
+      renderCraftingMenu(scene);
+      break;
+  }
+
+  renderInventory();
+  renderToolBelt();
+  renderMetrics();
+}
+
 function renderEntity(scene: Scene, e: Entity) {
   if (e.isVisible) {
     resetTransform();
@@ -1049,19 +1057,16 @@ function renderToolBelt() {
 }
 
 function renderMetrics() {
-  const { fps } = getEngineState();
   resetTransform();
   translateTransform(1, 1);
   scaleTransform(0.5, 0.5);
-  drawText(fps.toString(), 0, 0, "lime");
+  drawText(getFramePerSecond().toString(), 0, 0, "lime");
 }
 
 run({
-  settings: {
-    width: WIDTH,
-    height: HEIGHT,
-    cameraSmoothing: 0.05,
-  },
+  width: WIDTH,
+  height: HEIGHT,
   setup,
   update,
+  render,
 });
