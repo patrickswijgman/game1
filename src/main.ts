@@ -79,8 +79,7 @@ const ASSETS: AssetsManifest = {
         item_rock: [48, 48, 16, 16],
         item_portal_shard: [64, 48, 16, 16],
         tool_axe: [0, 64, 16, 16],
-        tool_stonecutter: [16, 64, 16, 16],
-        tool_pickaxe: [32, 64, 16, 16],
+        tool_pickaxe: [16, 64, 16, 16],
         icon_construct: [0, 80, 16, 16],
         building_crafting_table: [0, 96, 16, 16],
         building_furnace: [16, 96, 16, 16],
@@ -138,7 +137,6 @@ const enum Type {
   ITEM_PORTAL_SHARD = "item_portal_shard",
 
   TOOL_AXE = "tool_axe",
-  TOOL_STONECUTTER = "tool_stonecutter",
   TOOL_PICKAXE = "tool_pickaxe",
 
   BUILDING_CRAFTING_TABLE = "crafting_table",
@@ -175,6 +173,64 @@ const ITEMS: Dict<Item> = {
   },
 };
 
+type Recipe = {
+  name: string;
+  description: string;
+  spriteId: string;
+  ingredients: Array<{ item: Type; amount: number }>;
+  unlocks: Array<Type>;
+};
+
+const CRAFTING_BOOK: Dict<Recipe> = {
+  [Type.TOOL_AXE]: {
+    name: "Axe",
+    description: "Chop trees",
+    spriteId: "tool_axe",
+    ingredients: [
+      { item: Type.ITEM_TWIG, amount: 5 },
+      { item: Type.ITEM_FLINT, amount: 5 },
+    ],
+    unlocks: [],
+  },
+  [Type.TOOL_PICKAXE]: {
+    name: "Pickaxe",
+    description: "Mine stone and ores",
+    spriteId: "tool_pickaxe",
+    ingredients: [
+      { item: Type.ITEM_LOG, amount: 5 },
+      { item: Type.ITEM_FLINT, amount: 10 },
+    ],
+    unlocks: [],
+  },
+  [Type.BUILDING_CRAFTING_TABLE]: {
+    name: "Crafting Table",
+    description: "Craft things",
+    spriteId: "building_crafting_table",
+    ingredients: [
+      { item: Type.ITEM_TWIG, amount: 10 },
+      { item: Type.ITEM_FLINT, amount: 10 },
+    ],
+    unlocks: [Type.TOOL_AXE, Type.TOOL_PICKAXE],
+  },
+  [Type.BUILDING_FURNACE]: {
+    name: "Furnace",
+    description: "Heat things up",
+    spriteId: "building_furnace",
+    ingredients: [
+      { item: Type.ITEM_ROCK, amount: 20 },
+      { item: Type.ITEM_LOG, amount: 5 },
+    ],
+    unlocks: [],
+  },
+  [Type.BUILDING_PORTAL_FOREST]: {
+    name: "Forest Portal",
+    description: "Warp to the forest",
+    spriteId: "building_portal",
+    ingredients: [{ item: Type.ITEM_PORTAL_SHARD, amount: 1 }],
+    unlocks: [],
+  },
+};
+
 type Loot = {
   item: Type;
   chance: number;
@@ -200,77 +256,9 @@ const LOOT_TABLE: Dict<Array<Loot>> = {
   [Type.CHEST]: [{ item: Type.ITEM_PORTAL_SHARD, chance: 1 }],
 };
 
-type Recipe = {
-  name: string;
-  description: string;
-  spriteId: string;
-  ingredients: Array<{ item: Type; amount: number }>;
-  unlocks: Array<Type>;
-};
-
-const CRAFTING_BOOK: Dict<Recipe> = {
-  [Type.TOOL_AXE]: {
-    name: "Axe",
-    description: "Chop trees",
-    spriteId: "tool_axe",
-    ingredients: [
-      { item: Type.ITEM_TWIG, amount: 5 },
-      { item: Type.ITEM_FLINT, amount: 5 },
-    ],
-    unlocks: [],
-  },
-  [Type.TOOL_STONECUTTER]: {
-    name: "Stonecutter",
-    description: "Cut stone",
-    spriteId: "tool_stonecutter",
-    ingredients: [
-      { item: Type.ITEM_LOG, amount: 2 },
-      { item: Type.ITEM_FLINT, amount: 5 },
-    ],
-    unlocks: [],
-  },
-  [Type.TOOL_PICKAXE]: {
-    name: "Pickaxe",
-    description: "Mine ores",
-    spriteId: "tool_pickaxe",
-    ingredients: [
-      { item: Type.ITEM_LOG, amount: 5 },
-      { item: Type.ITEM_ROCK, amount: 5 },
-    ],
-    unlocks: [],
-  },
-  [Type.BUILDING_CRAFTING_TABLE]: {
-    name: "Crafting Table",
-    description: "Craft things",
-    spriteId: "building_crafting_table",
-    ingredients: [
-      { item: Type.ITEM_TWIG, amount: 10 },
-      { item: Type.ITEM_FLINT, amount: 10 },
-    ],
-    unlocks: [Type.TOOL_AXE, Type.TOOL_STONECUTTER, Type.TOOL_PICKAXE],
-  },
-  [Type.BUILDING_FURNACE]: {
-    name: "Furnace",
-    description: "Heat things up",
-    spriteId: "building_furnace",
-    ingredients: [
-      { item: Type.ITEM_ROCK, amount: 20 },
-      { item: Type.ITEM_LOG, amount: 5 },
-    ],
-    unlocks: [],
-  },
-  [Type.BUILDING_PORTAL_FOREST]: {
-    name: "Forest Portal",
-    description: "Warp to the forest",
-    spriteId: "building_portal",
-    ingredients: [{ item: Type.ITEM_PORTAL_SHARD, amount: 1 }],
-    unlocks: [],
-  },
-};
-
 const TOOL_REQUIRED: Dict<Type> = {
   [Type.TREE]: Type.TOOL_AXE,
-  [Type.ROCK]: Type.TOOL_STONECUTTER,
+  [Type.ROCK]: Type.TOOL_PICKAXE,
 };
 
 const PORTAL_DESTINATION: Dict<SceneId> = {
@@ -611,7 +599,6 @@ const game: Game = {
   },
   tools: {
     [Type.TOOL_AXE]: false,
-    [Type.TOOL_STONECUTTER]: false,
     [Type.TOOL_PICKAXE]: false,
   },
   buildings: {
