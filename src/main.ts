@@ -76,7 +76,7 @@ const ASSETS: AssetsManifest = {
         item_twig: [0, 48, 16, 16],
         item_log: [16, 48, 16, 16],
         item_flint: [32, 48, 16, 16],
-        item_stone: [48, 48, 16, 16],
+        item_rock: [48, 48, 16, 16],
         item_portal_shard: [64, 48, 16, 16],
         tool_axe: [0, 64, 16, 16],
         tool_stonecutter: [16, 64, 16, 16],
@@ -134,7 +134,7 @@ const enum Type {
   ITEM_TWIG = "item_twig",
   ITEM_FLINT = "item_flint",
   ITEM_LOG = "item_log",
-  ITEM_STONE = "item_stone",
+  ITEM_ROCK = "item_rock",
   ITEM_PORTAL_SHARD = "item_portal_shard",
 
   TOOL_AXE = "tool_axe",
@@ -165,9 +165,9 @@ const ITEMS: Dict<Item> = {
     name: "Log",
     spriteId: "item_log",
   },
-  [Type.ITEM_STONE]: {
-    name: "Stone",
-    spriteId: "item_stone",
+  [Type.ITEM_ROCK]: {
+    name: "Rock",
+    spriteId: "item_rock",
   },
   [Type.ITEM_PORTAL_SHARD]: {
     name: "Portal Shard",
@@ -194,8 +194,8 @@ const LOOT_TABLE: Dict<Array<Loot>> = {
     { item: Type.ITEM_LOG, chance: 0.5 },
   ],
   [Type.ROCK]: [
-    { item: Type.ITEM_STONE, chance: 1 },
-    { item: Type.ITEM_STONE, chance: 0.5 },
+    { item: Type.ITEM_ROCK, chance: 1 },
+    { item: Type.ITEM_ROCK, chance: 0.5 },
   ],
   [Type.CHEST]: [{ item: Type.ITEM_PORTAL_SHARD, chance: 1 }],
 };
@@ -235,7 +235,7 @@ const CRAFTING_BOOK: Dict<Recipe> = {
     spriteId: "tool_pickaxe",
     ingredients: [
       { item: Type.ITEM_LOG, amount: 5 },
-      { item: Type.ITEM_STONE, amount: 5 },
+      { item: Type.ITEM_ROCK, amount: 5 },
     ],
     unlocks: [],
   },
@@ -254,7 +254,7 @@ const CRAFTING_BOOK: Dict<Recipe> = {
     description: "Heat things up",
     spriteId: "building_furnace",
     ingredients: [
-      { item: Type.ITEM_STONE, amount: 20 },
+      { item: Type.ITEM_ROCK, amount: 20 },
       { item: Type.ITEM_LOG, amount: 5 },
     ],
     unlocks: [],
@@ -448,8 +448,8 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.pivot.y = 12;
       break;
 
-    case Type.ITEM_STONE:
-      e.spriteId = "item_stone";
+    case Type.ITEM_ROCK:
+      e.spriteId = "item_rock";
       e.state = State.ITEM_IDLE;
       e.pivot.x = 8;
       e.pivot.y = 12;
@@ -606,7 +606,7 @@ const game: Game = {
     [Type.ITEM_TWIG]: 20,
     [Type.ITEM_FLINT]: 20,
     [Type.ITEM_LOG]: 0,
-    [Type.ITEM_STONE]: 0,
+    [Type.ITEM_ROCK]: 0,
     [Type.ITEM_PORTAL_SHARD]: 0,
   },
   tools: {
