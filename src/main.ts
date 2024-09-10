@@ -175,11 +175,11 @@ const ITEMS: Dict<Item> = {
     spriteId: "item_rock",
   },
   [Type.ITEM_IRON_ORE]: {
-    name: "Iron ore",
+    name: "Iron Ore",
     spriteId: "item_iron_ore",
   },
   [Type.ITEM_IRON_INGOT]: {
-    name: "Iron ingot",
+    name: "Iron Ingot",
     spriteId: "item_iron_ingot",
   },
   [Type.ITEM_PORTAL_SHARD]: {
@@ -198,7 +198,7 @@ type Recipe = {
 
 const CRAFTING_BOOK: Dict<Recipe> = {
   [Type.ITEM_IRON_INGOT]: {
-    name: "Iron ingot",
+    name: "Iron Ingot",
     description: "For things that need iron",
     spriteId: "item_iron_ingot",
     ingredients: [{ item: Type.ITEM_IRON_ORE, amount: 10 }],
@@ -216,7 +216,7 @@ const CRAFTING_BOOK: Dict<Recipe> = {
   },
   [Type.TOOL_PICKAXE]: {
     name: "Pickaxe",
-    description: "Mine stone and ores",
+    description: "Mine stones and ores",
     spriteId: "tool_pickaxe",
     ingredients: [
       { item: Type.ITEM_LOG, amount: 5 },
@@ -240,7 +240,7 @@ const CRAFTING_BOOK: Dict<Recipe> = {
     spriteId: "building_furnace",
     ingredients: [
       { item: Type.ITEM_ROCK, amount: 20 },
-      { item: Type.ITEM_LOG, amount: 5 },
+      { item: Type.ITEM_LOG, amount: 10 },
     ],
     unlocks: [Type.ITEM_IRON_INGOT],
   },
@@ -275,12 +275,17 @@ const LOOT_TABLE: Dict<Array<Loot>> = {
     { item: Type.ITEM_ROCK, chance: 1 },
     { item: Type.ITEM_ROCK, chance: 0.5 },
   ],
+  [Type.IRON]: [
+    { item: Type.ITEM_IRON_ORE, chance: 1 },
+    { item: Type.ITEM_IRON_ORE, chance: 0.5 },
+  ],
   [Type.CHEST]: [{ item: Type.ITEM_PORTAL_SHARD, chance: 1 }],
 };
 
 const TOOL_REQUIRED: Dict<Type> = {
   [Type.TREE]: Type.TOOL_AXE,
   [Type.ROCK]: Type.TOOL_PICKAXE,
+  [Type.IRON]: Type.TOOL_PICKAXE,
 };
 
 const PORTAL_DESTINATION: Dict<SceneId> = {
