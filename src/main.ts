@@ -268,6 +268,11 @@ const CRAFTING_BOOK: Dict<Recipe> = {
   },
 };
 
+const TOOL_REQUIRED: Dict<Type> = {
+  [Type.TREE]: Type.TOOL_AXE,
+  [Type.ROCK]: Type.TOOL_STONECUTTER,
+};
+
 const enum State {
   NONE = "",
   PLAYER_IDLE = "player_idle",
@@ -302,7 +307,6 @@ type Entity = {
   timer2: Timer;
   duration: number;
   health: number;
-  tool: Type;
   portalSceneId: SceneId;
   isRigid: boolean;
   isVisible: boolean;
@@ -336,7 +340,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     timer2: timer(),
     duration: 0,
     health: 0,
-    tool: Type.NONE,
     portalSceneId: SceneId.HOME,
     isRigid: false,
     isVisible: true,
@@ -393,7 +396,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.hitboxOffset.x = -6.5;
       e.hitboxOffset.y = -25;
       e.health = 3;
-      e.tool = Type.TOOL_AXE;
       e.isInteractable = true;
       e.duration = random(1500, 2000);
       break;
@@ -407,7 +409,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.bodyOffset.x = -5;
       e.bodyOffset.y = -3;
       e.health = 5;
-      e.tool = Type.TOOL_STONECUTTER;
       e.isInteractable = true;
       break;
 
@@ -887,9 +888,10 @@ function updateNearestInteractable(scene: Scene, player: Entity) {
   let smallestDistance = Infinity;
   for (const id of scene.active) {
     const target = scene.entities[id];
+    const tool = TOOL_REQUIRED[target.type];
     const distance = getVectorDistance(player.pos, target.pos);
     if (target.isInteractable && distance < PLAYER_INTERACT_RANGE && distance < smallestDistance) {
-      if (target.tool && !game.tools[target.tool]) {
+      if (tool && !game.tools[tool]) {
         continue;
       }
       scene.interactableId = id;
