@@ -72,12 +72,15 @@ const ASSETS: AssetsManifest = {
         rock: [16, 32, 16, 16],
         shrub: [32, 32, 16, 16],
         flint: [48, 32, 16, 16],
+        iron: [64, 32, 16, 16],
         chest: [16, 16, 16, 16],
         item_twig: [0, 48, 16, 16],
         item_log: [16, 48, 16, 16],
         item_flint: [32, 48, 16, 16],
         item_rock: [48, 48, 16, 16],
         item_portal_shard: [64, 48, 16, 16],
+        item_iron_ore: [80, 48, 16, 16],
+        item_iron_ingot: [96, 48, 16, 16],
         tool_axe: [0, 64, 16, 16],
         tool_pickaxe: [16, 64, 16, 16],
         icon_construct: [0, 80, 16, 16],
@@ -101,6 +104,7 @@ const ASSETS: AssetsManifest = {
         rock_outline: [16, 32, 16, 16],
         shrub_outline: [32, 32, 16, 16],
         flint_outline: [48, 32, 16, 16],
+        iron_outline: [64, 32, 16, 16],
         chest_outline: [16, 16, 16, 16],
         building_crafting_table_outline: [0, 96, 16, 16],
         building_furnace_outline: [16, 96, 16, 16],
@@ -128,12 +132,15 @@ const enum Type {
   FLINT = "flint",
   TREE = "tree",
   ROCK = "rock",
+  IRON = "iron",
   CHEST = "chest",
 
   ITEM_TWIG = "item_twig",
   ITEM_FLINT = "item_flint",
   ITEM_LOG = "item_log",
   ITEM_ROCK = "item_rock",
+  ITEM_IRON_ORE = "item_iron_ore",
+  ITEM_IRON_INGOT = "item_iron_ingot",
   ITEM_PORTAL_SHARD = "item_portal_shard",
 
   TOOL_AXE = "tool_axe",
@@ -167,6 +174,14 @@ const ITEMS: Dict<Item> = {
     name: "Rock",
     spriteId: "item_rock",
   },
+  [Type.ITEM_IRON_ORE]: {
+    name: "Iron ore",
+    spriteId: "item_iron_ore",
+  },
+  [Type.ITEM_IRON_INGOT]: {
+    name: "Iron ingot",
+    spriteId: "item_iron_ingot",
+  },
   [Type.ITEM_PORTAL_SHARD]: {
     name: "Portal Shard",
     spriteId: "item_portal_shard",
@@ -182,6 +197,13 @@ type Recipe = {
 };
 
 const CRAFTING_BOOK: Dict<Recipe> = {
+  [Type.ITEM_IRON_INGOT]: {
+    name: "Iron ingot",
+    description: "For things that need iron",
+    spriteId: "item_iron_ingot",
+    ingredients: [{ item: Type.ITEM_IRON_ORE, amount: 10 }],
+    unlocks: [],
+  },
   [Type.TOOL_AXE]: {
     name: "Axe",
     description: "Chop trees",
@@ -220,7 +242,7 @@ const CRAFTING_BOOK: Dict<Recipe> = {
       { item: Type.ITEM_ROCK, amount: 20 },
       { item: Type.ITEM_LOG, amount: 5 },
     ],
-    unlocks: [],
+    unlocks: [Type.ITEM_IRON_INGOT],
   },
   [Type.BUILDING_PORTAL_FOREST]: {
     name: "Forest Portal",
@@ -591,11 +613,13 @@ const game: Game = {
   scenes: {},
   sceneId: SceneId.HOME,
   inventory: {
-    [Type.ITEM_TWIG]: 20,
-    [Type.ITEM_FLINT]: 20,
-    [Type.ITEM_LOG]: 0,
-    [Type.ITEM_ROCK]: 0,
-    [Type.ITEM_PORTAL_SHARD]: 0,
+    [Type.ITEM_TWIG]: 99,
+    [Type.ITEM_FLINT]: 99,
+    [Type.ITEM_LOG]: 99,
+    [Type.ITEM_ROCK]: 99,
+    [Type.ITEM_IRON_ORE]: 99,
+    [Type.ITEM_IRON_INGOT]: 99,
+    [Type.ITEM_PORTAL_SHARD]: 99,
   },
   tools: {
     [Type.TOOL_AXE]: false,
@@ -857,7 +881,7 @@ function updateCraftingMenu(scene: Scene) {
         game.buildings[type] = true;
       }
       if (type in game.inventory) {
-        game.inventory[type] += 1;
+        game.inventory[type] = Math.min(game.inventory[type] + 1, MAX_ITEM_COUNT);
       }
       for (const ingredient of recipe.ingredients) {
         game.inventory[ingredient.item] -= ingredient.amount;
