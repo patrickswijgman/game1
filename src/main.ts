@@ -273,6 +273,11 @@ const TOOL_REQUIRED: Dict<Type> = {
   [Type.ROCK]: Type.TOOL_STONECUTTER,
 };
 
+const PORTAL_DESTINATION: Dict<SceneId> = {
+  [Type.BUILDING_PORTAL_HOME]: SceneId.HOME,
+  [Type.BUILDING_PORTAL_FOREST]: SceneId.FOREST,
+};
+
 const enum State {
   NONE = "",
   PLAYER_IDLE = "player_idle",
@@ -307,7 +312,6 @@ type Entity = {
   timer2: Timer;
   duration: number;
   health: number;
-  portalSceneId: SceneId;
   isRigid: boolean;
   isVisible: boolean;
   isFlipped: boolean;
@@ -340,7 +344,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     timer2: timer(),
     duration: 0,
     health: 0,
-    portalSceneId: SceneId.HOME,
     isRigid: false,
     isVisible: true,
     isFlipped: false,
@@ -494,7 +497,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.isInteractable = true;
       e.isBuilding = true;
       e.isPortal = true;
-      e.portalSceneId = SceneId.HOME;
       break;
 
     case Type.BUILDING_PORTAL_FOREST:
@@ -508,7 +510,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.isInteractable = true;
       e.isBuilding = true;
       e.isPortal = true;
-      e.portalSceneId = SceneId.FOREST;
       break;
   }
   scene.entities[id] = e;
@@ -780,7 +781,7 @@ function interactWithResource(scene: Scene, player: Entity) {
 function interactWithBuilding(scene: Scene) {
   const e = scene.entities[scene.interactableId];
   if (e.isPortal && game.buildings[e.type]) {
-    game.sceneId = e.portalSceneId;
+    game.sceneId = PORTAL_DESTINATION[e.type];
     const scene = game.scenes[game.sceneId];
     const player = scene.entities[scene.playerId];
     setCameraPosition(player.pos.x, player.pos.y);
