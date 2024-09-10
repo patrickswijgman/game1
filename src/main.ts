@@ -268,10 +268,6 @@ const CRAFTING_BOOK: Dict<Recipe> = {
   },
 };
 
-function isCraftable(type: Type) {
-  return CRAFTING_BOOK[type].ingredients.every((ingredient) => game.inventory[ingredient.item] >= ingredient.amount);
-}
-
 const enum State {
   NONE = "",
   PLAYER_IDLE = "player_idle",
@@ -848,6 +844,7 @@ function updateCraftingMenu(scene: Scene) {
   }
   const building = scene.entities[scene.selectedBuildingId];
   const type = scene.selectedBuildingRecipes[scene.selectedMenuItemIndex];
+  const recipe = CRAFTING_BOOK[type];
   if (isInputPressed(InputCode.KEY_LEFT)) {
     consumeInputPressed(InputCode.KEY_LEFT);
     scene.selectedMenuItemIndex = Math.max(0, scene.selectedMenuItemIndex - 1);
@@ -857,26 +854,30 @@ function updateCraftingMenu(scene: Scene) {
     scene.selectedMenuItemIndex = Math.min(scene.selectedBuildingRecipes.length - 1, scene.selectedMenuItemIndex + 1);
   }
   if (isInputPressed(InputCode.KEY_ESCAPE)) {
+    consumeInputPressed(InputCode.KEY_ESCAPE);
     game.state = GameState.NORMAL;
   }
-  if (isInputPressed(InputCode.KEY_Z) && isCraftable(type)) {
+  if (isInputPressed(InputCode.KEY_Z)) {
     consumeInputPressed(InputCode.KEY_Z);
-    if (type in game.tools) {
-      game.tools[type] = true;
-    }
-    if (type in game.buildings) {
-      game.buildings[type] = true;
-    }
-    if (type in game.inventory) {
-      game.inventory[type] += 1;
-    }
-    for (const ingredient of CRAFTING_BOOK[type].ingredients) {
-      game.inventory[ingredient.item] -= ingredient.amount;
-    }
-    if (!building.isPortal) {
-      interactWithBuilding(scene);
-    } else {
-      game.state = GameState.NORMAL;
+    const isCraftable = recipe.ingredients.every((ingredient) => game.inventory[ingredient.item] >= ingredient.amount);
+    if (isCraftable) {
+      if (type in game.tools) {
+        game.tools[type] = true;
+      }
+      if (type in game.buildings) {
+        game.buildings[type] = true;
+      }
+      if (type in game.inventory) {
+        game.inventory[type] += 1;
+      }
+      for (const ingredient of recipe.ingredients) {
+        game.inventory[ingredient.item] -= ingredient.amount;
+      }
+      if (!building.isPortal) {
+        interactWithBuilding(scene);
+      } else {
+        game.state = GameState.NORMAL;
+      }
     }
   }
 }
