@@ -87,6 +87,7 @@ const ASSETS: AssetsManifest = {
         building_crafting_table: [0, 96, 16, 16],
         building_furnace: [16, 96, 16, 16],
         building_portal: [32, 80, 32, 32],
+        building_anvil: [64, 96, 16, 16],
         tile_grass: [0, 128, 16, 16],
         box: [0, 176, 16, 16],
         box_selection: [16, 176, 16, 16],
@@ -109,6 +110,7 @@ const ASSETS: AssetsManifest = {
         building_crafting_table_outline: [0, 96, 16, 16],
         building_furnace_outline: [16, 96, 16, 16],
         building_portal_outline: [32, 80, 32, 32],
+        building_anvil_outline: [64, 96, 16, 16],
       },
     },
   },
@@ -146,8 +148,9 @@ const enum Type {
   TOOL_AXE = "tool_axe",
   TOOL_PICKAXE = "tool_pickaxe",
 
-  BUILDING_CRAFTING_TABLE = "crafting_table",
-  BUILDING_FURNACE = "furnace",
+  BUILDING_CRAFTING_TABLE = "building_crafting_table",
+  BUILDING_FURNACE = "building_furnace",
+  BUILDING_ANVIL = "building_anvil",
   BUILDING_PORTAL_HOME = "building_portal_home",
   BUILDING_PORTAL_FOREST = "building_portal_forest",
 }
@@ -243,6 +246,13 @@ const CRAFTING_BOOK: Dict<Recipe> = {
       { item: Type.ITEM_LOG, amount: 10 },
     ],
     unlocks: [Type.ITEM_IRON_INGOT],
+  },
+  [Type.BUILDING_ANVIL]: {
+    name: "Anvil",
+    description: "Smith things",
+    spriteId: "building_anvil",
+    ingredients: [{ item: Type.ITEM_IRON_INGOT, amount: 5 }],
+    unlocks: [],
   },
   [Type.BUILDING_PORTAL_FOREST]: {
     name: "Forest Portal",
@@ -501,6 +511,18 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.isBuilding = true;
       break;
 
+    case Type.BUILDING_ANVIL:
+      e.spriteId = "building_anvil";
+      e.pivot.x = 8;
+      e.pivot.y = 12;
+      e.body.w = 8;
+      e.body.h = 2;
+      e.bodyOffset.x = -3;
+      e.bodyOffset.y = -2;
+      e.isInteractable = true;
+      e.isBuilding = true;
+      break;
+
     case Type.BUILDING_PORTAL_HOME:
       e.spriteId = "building_portal";
       e.pivot.x = 16;
@@ -576,6 +598,7 @@ function createScene(id: SceneId) {
         createEntity(scene, 160, 90, Type.PLAYER);
         createEntity(scene, 120, 80, Type.BUILDING_CRAFTING_TABLE);
         createEntity(scene, 140, 80, Type.BUILDING_FURNACE);
+        createEntity(scene, 180, 80, Type.BUILDING_ANVIL);
         createEntity(scene, 160, 80, Type.CHEST);
         createEntity(scene, 160, 40, Type.BUILDING_PORTAL_FOREST);
       }
@@ -633,6 +656,7 @@ const game: Game = {
   buildings: {
     [Type.BUILDING_CRAFTING_TABLE]: false,
     [Type.BUILDING_FURNACE]: false,
+    [Type.BUILDING_ANVIL]: false,
     [Type.BUILDING_PORTAL_HOME]: true,
     [Type.BUILDING_PORTAL_FOREST]: false,
   },
