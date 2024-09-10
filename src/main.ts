@@ -472,9 +472,9 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.spriteId = "building_portal";
       e.pivot.x = 16;
       e.pivot.y = 24;
-      e.body.w = 20;
+      e.body.w = 18;
       e.body.h = 4;
-      e.bodyOffset.x = -10;
+      e.bodyOffset.x = -9;
       e.bodyOffset.y = -4;
       e.isInteractable = true;
       e.isBuilding = true;
@@ -486,9 +486,9 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.spriteId = "building_portal";
       e.pivot.x = 16;
       e.pivot.y = 24;
-      e.body.w = 20;
+      e.body.w = 18;
       e.body.h = 4;
-      e.bodyOffset.x = -10;
+      e.bodyOffset.x = -9;
       e.bodyOffset.y = -4;
       e.isInteractable = true;
       e.isBuilding = true;
@@ -521,6 +521,8 @@ type Scene = {
   selectedMenuItemIndex: number;
   selectedBuildingId: string;
   selectedBuildingRecipes: Array<Type>;
+  floorSpriteId: string;
+  boundary: Rectangle;
 };
 
 function createScene(id: SceneId) {
@@ -534,6 +536,8 @@ function createScene(id: SceneId) {
     selectedMenuItemIndex: 0,
     selectedBuildingId: "",
     selectedBuildingRecipes: [],
+    floorSpriteId: "",
+    boundary: rect(),
   };
   switch (id) {
     case SceneId.HOME:
@@ -548,6 +552,7 @@ function createScene(id: SceneId) {
 
     case SceneId.FOREST:
       {
+        scene.floorSpriteId = "tile_grass";
         createEntity(scene, 160, 80, Type.BUILDING_PORTAL_HOME);
         createEntity(scene, 160, 90, Type.PLAYER);
         const types = [Type.SHRUB, Type.FLINT, Type.TREE, Type.ROCK];
@@ -904,9 +909,11 @@ function setState(e: Entity, state: State) {
 function render() {
   const scene = game.scenes[game.sceneId];
 
-  applyCameraTransform();
-  scaleTransform(30, 30);
-  drawSprite("tile_grass", 0, 0);
+  if (scene.floorSpriteId) {
+    applyCameraTransform();
+    scaleTransform(30, 30);
+    drawSprite(scene.floorSpriteId, 0, 0);
+  }
 
   depthSortEntities(scene, scene.render);
 
