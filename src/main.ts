@@ -175,6 +175,31 @@ const ITEMS: Dict<Item> = {
   },
 };
 
+type Loot = {
+  item: Type;
+  chance: number;
+};
+
+const LOOT_TABLE: Dict<Array<Loot>> = {
+  [Type.SHRUB]: [
+    { item: Type.ITEM_TWIG, chance: 1 },
+    { item: Type.ITEM_TWIG, chance: 0.5 },
+  ],
+  [Type.FLINT]: [
+    { item: Type.ITEM_FLINT, chance: 1 },
+    { item: Type.ITEM_FLINT, chance: 0.5 },
+  ],
+  [Type.TREE]: [
+    { item: Type.ITEM_LOG, chance: 1 },
+    { item: Type.ITEM_LOG, chance: 0.5 },
+  ],
+  [Type.ROCK]: [
+    { item: Type.ITEM_STONE, chance: 1 },
+    { item: Type.ITEM_STONE, chance: 0.5 },
+  ],
+  [Type.CHEST]: [{ item: Type.ITEM_PORTAL_SHARD, chance: 1 }],
+};
+
 type Recipe = {
   name: string;
   description: string;
@@ -282,7 +307,6 @@ type Entity = {
   duration: number;
   health: number;
   tool: Type;
-  loot: Array<{ type: Type; chance: number }>;
   portalSceneId: SceneId;
   isRigid: boolean;
   isVisible: boolean;
@@ -317,7 +341,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     duration: 0,
     health: 0,
     tool: Type.NONE,
-    loot: [],
     portalSceneId: SceneId.HOME,
     isRigid: false,
     isVisible: true,
@@ -348,7 +371,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.pivot.x = 8;
       e.pivot.y = 15;
       e.health = 1;
-      e.loot.push({ type: Type.ITEM_TWIG, chance: 1 }, { type: Type.ITEM_TWIG, chance: 0.5 });
       e.isInteractable = true;
       e.duration = random(750, 1000);
       break;
@@ -358,7 +380,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.pivot.x = 8;
       e.pivot.y = 15;
       e.health = 1;
-      e.loot.push({ type: Type.ITEM_FLINT, chance: 1 }, { type: Type.ITEM_FLINT, chance: 0.5 });
       e.isInteractable = true;
       break;
 
@@ -377,7 +398,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.hitboxOffset.y = -25;
       e.health = 3;
       e.tool = Type.TOOL_AXE;
-      e.loot.push({ type: Type.ITEM_LOG, chance: 1 }, { type: Type.ITEM_LOG, chance: 0.5 });
       e.isInteractable = true;
       e.duration = random(1500, 2000);
       break;
@@ -392,7 +412,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.bodyOffset.y = -3;
       e.health = 5;
       e.tool = Type.TOOL_STONECUTTER;
-      e.loot.push({ type: Type.ITEM_STONE, chance: 1 }, { type: Type.ITEM_STONE, chance: 0.5 });
       e.isInteractable = true;
       break;
 
@@ -405,7 +424,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.bodyOffset.x = -4;
       e.bodyOffset.y = -2;
       e.health = 1;
-      e.loot.push({ type: Type.ITEM_PORTAL_SHARD, chance: 1 });
       e.isInteractable = true;
       break;
 
@@ -751,9 +769,9 @@ function interactWithResource(scene: Scene, player: Entity) {
   if (trigger) {
     e.health -= 1;
     if (e.health <= 0) {
-      for (const loot of e.loot) {
+      for (const loot of LOOT_TABLE[e.type]) {
         if (roll(loot.chance)) {
-          createEntity(scene, e.pos.x + random(-4, 4), e.pos.y + random(-4, 4), loot.type);
+          createEntity(scene, e.pos.x + random(-4, 4), e.pos.y + random(-4, 4), loot.item);
         }
       }
       destroyEntity(scene, e.id);
