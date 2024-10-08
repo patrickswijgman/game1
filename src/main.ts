@@ -10,8 +10,10 @@ import {
   drawRectInstance,
   drawSprite,
   drawText,
+  drawTexture,
   getDelta,
   getFramePerSecond,
+  getPixel,
   getSprite,
   getTexture,
   getVectorDistance,
@@ -89,7 +91,6 @@ const ASSETS: AssetsManifest = {
         building_furnace: [16, 96, 16, 16],
         building_portal: [32, 80, 32, 32],
         building_anvil: [64, 96, 16, 16],
-        tile_grass: [0, 128, 16, 16],
         box: [0, 176, 16, 16],
         box_selection: [16, 176, 16, 16],
         tooltip: [0, 192, 80, 64],
@@ -115,6 +116,20 @@ const ASSETS: AssetsManifest = {
         building_furnace_outline: [16, 96, 16, 16],
         building_portal_outline: [32, 80, 32, 32],
         building_anvil_outline: [64, 96, 16, 16],
+      },
+    },
+  },
+  renderTextures: {
+    grass: {
+      width: 512,
+      height: 512,
+      draw: (ctx, width, height) => {
+        const texture = getTexture("atlas");
+        for (let x = 0; x < width; x += 16) {
+          for (let y = 0; y < height; y += 16) {
+            ctx.drawImage(texture, 0, 128, 16, 16, x, y, 16, 16);
+          }
+        }
       },
     },
   },
@@ -573,12 +588,12 @@ type Scene = {
   active: string[];
   render: string[];
   destroyed: string[];
+  textureId: string;
   playerId: string;
   interactableId: string;
   selectedMenuItemIndex: number;
   selectedBuildingId: string;
   selectedBuildingRecipes: Array<Type>;
-  floorSpriteId: string;
   boundary: Rectangle;
 };
 
@@ -588,41 +603,59 @@ function createScene(id: SceneId) {
     active: [],
     render: [],
     destroyed: [],
+    textureId: "",
     playerId: "",
     interactableId: "",
     selectedMenuItemIndex: 0,
     selectedBuildingId: "",
     selectedBuildingRecipes: [],
-    floorSpriteId: "",
     boundary: rect(),
   };
   switch (id) {
     case SceneId.HOME:
-      {
-        createEntity(scene, 160, 90, Type.PLAYER);
-        createEntity(scene, 120, 80, Type.BUILDING_CRAFTING_TABLE);
-        createEntity(scene, 140, 80, Type.BUILDING_FURNACE);
-        createEntity(scene, 180, 80, Type.BUILDING_ANVIL);
-        createEntity(scene, 160, 80, Type.CHEST);
-        createEntity(scene, 160, 40, Type.BUILDING_PORTAL_FOREST);
-      }
+      createEntity(scene, 160, 90, Type.PLAYER);
+      createEntity(scene, 120, 80, Type.BUILDING_CRAFTING_TABLE);
+      createEntity(scene, 140, 80, Type.BUILDING_FURNACE);
+      createEntity(scene, 180, 80, Type.BUILDING_ANVIL);
+      createEntity(scene, 160, 80, Type.CHEST);
+      createEntity(scene, 160, 40, Type.BUILDING_PORTAL_FOREST);
       break;
 
     case SceneId.FOREST:
-      {
-        scene.floorSpriteId = "tile_grass";
-        setupSceneFromImage(scene, "forest");
-      }
+      scene.textureId = "grass";
+      setupSceneFromImage(scene, "forest", Type.BUILDING_PORTAL_HOME);
       break;
   }
   game.scenes[id] = scene;
   return scene;
 }
 
-function setupSceneFromImage(scene: Scene, id: string) {
-  const { src } = getTexture(id);
-  console.log(src);
-  console.log();
+function setupSceneFromImage(scene: Scene, textureId: string, portal: Type) {
+  const texture = getTexture(textureId);
+  for (let x = 0; x < texture.width; x++) {
+    for (let y = 0; y < texture.height; y++) {
+      const pixel = getPixel(texture, x, y);
+      const type = getEntityByColor(pixel.hex, portal);
+      if (type) {
+        createEntity(scene, x * TILE_SIZE, y * TILE_SIZE, type);
+      }
+    }
+  }
+}
+
+function getEntityByColor(color: string, portal: Type) {
+  switch (color) {
+    case "#ff0000":
+      return Type.PLAYER;
+    case "#405f43":
+      return Type.TREE;
+    case "#513821":
+      return Type.SHRUB;
+    case "#8954ce":
+      return portal;
+    default:
+      return Type.NONE;
+  }
 }
 
 const enum GameState {
@@ -973,10 +1006,9 @@ function setState(e: Entity, state: State) {
 function render() {
   const scene = game.scenes[game.sceneId];
 
-  if (scene.floorSpriteId) {
+  if (scene.textureId) {
     applyCameraTransform();
-    scaleTransform(30, 30);
-    drawSprite(scene.floorSpriteId, 0, 0);
+    drawTexture(scene.textureId, 0, 0);
   }
 
   depthSortEntities(scene, scene.render);
