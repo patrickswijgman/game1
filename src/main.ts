@@ -13,6 +13,7 @@ import {
   getDelta,
   getFramePerSecond,
   getSprite,
+  getTexture,
   getVectorDistance,
   getVectorLength,
   InputCode,
@@ -93,6 +94,9 @@ const ASSETS: AssetsManifest = {
         box_selection: [16, 176, 16, 16],
         tooltip: [0, 192, 80, 64],
       },
+    },
+    forest: {
+      url: "worlds/forest.png",
     },
   },
   outlineTextures: {
@@ -607,20 +611,18 @@ function createScene(id: SceneId) {
     case SceneId.FOREST:
       {
         scene.floorSpriteId = "tile_grass";
-        createEntity(scene, 160, 80, Type.BUILDING_PORTAL_HOME);
-        createEntity(scene, 160, 90, Type.PLAYER);
-        const types = [Type.SHRUB, Type.FLINT, Type.TREE, Type.ROCK];
-        for (let x = 0; x < WIDTH; x += TILE_SIZE) {
-          for (let y = 0; y < HEIGHT; y += TILE_SIZE) {
-            const type = pick(types);
-            createEntity(scene, x, y, type);
-          }
-        }
+        setupSceneFromImage(scene, "forest");
       }
       break;
   }
   game.scenes[id] = scene;
   return scene;
+}
+
+function setupSceneFromImage(scene: Scene, id: string) {
+  const { src } = getTexture(id);
+  console.log(src);
+  console.log();
 }
 
 const enum GameState {
@@ -641,13 +643,13 @@ const game: Game = {
   scenes: {},
   sceneId: SceneId.HOME,
   inventory: {
-    [Type.ITEM_TWIG]: 99,
-    [Type.ITEM_FLINT]: 99,
-    [Type.ITEM_LOG]: 99,
-    [Type.ITEM_ROCK]: 99,
-    [Type.ITEM_IRON_ORE]: 99,
-    [Type.ITEM_IRON_INGOT]: 99,
-    [Type.ITEM_PORTAL_SHARD]: 99,
+    [Type.ITEM_TWIG]: 0,
+    [Type.ITEM_FLINT]: 0,
+    [Type.ITEM_LOG]: 0,
+    [Type.ITEM_ROCK]: 0,
+    [Type.ITEM_IRON_ORE]: 0,
+    [Type.ITEM_IRON_INGOT]: 0,
+    [Type.ITEM_PORTAL_SHARD]: 0,
   },
   tools: {
     [Type.TOOL_AXE]: false,
