@@ -418,7 +418,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.state = State.PLAYER_IDLE;
       e.spriteId = "player";
       e.pivot.x = 8;
-      e.pivot.y = 15;
+      e.pivot.y = 14;
       e.body.w = 6;
       e.body.h = 2;
       e.bodyOffset.x = -3;
@@ -432,7 +432,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.state = State.SHRUB_IDLE;
       e.spriteId = "shrub";
       e.pivot.x = 8;
-      e.pivot.y = 15;
+      e.pivot.y = 14;
       e.health = 1;
       e.isInteractable = true;
       e.duration = random(750, 1000);
@@ -441,7 +441,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     case Type.FLINT:
       e.spriteId = "flint";
       e.pivot.x = 8;
-      e.pivot.y = 15;
+      e.pivot.y = 14;
       e.health = 1;
       e.isInteractable = true;
       break;
@@ -450,7 +450,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.state = State.TREE_IDLE;
       e.spriteId = "tree";
       e.pivot.x = 8;
-      e.pivot.y = 31;
+      e.pivot.y = 30;
       e.body.w = 2;
       e.body.h = 2;
       e.bodyOffset.x = -1;
@@ -467,7 +467,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     case Type.ROCK:
       e.spriteId = "rock";
       e.pivot.x = 8;
-      e.pivot.y = 15;
+      e.pivot.y = 14;
       e.body.w = 10;
       e.body.h = 3;
       e.bodyOffset.x = -5;
@@ -479,7 +479,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     case Type.CHEST:
       e.spriteId = "chest";
       e.pivot.x = 8;
-      e.pivot.y = 15;
+      e.pivot.y = 14;
       e.body.w = 8;
       e.body.h = 2;
       e.bodyOffset.x = -4;
