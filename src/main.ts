@@ -11,6 +11,7 @@ import {
   drawSprite,
   drawText,
   drawTexture,
+  getCameraPosition,
   getDelta,
   getFramePerSecond,
   getPixel,
@@ -408,7 +409,6 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
       e.isRigid = true;
       e.health = 1;
       scene.playerId = id;
-      setCameraPosition(x, y);
       break;
 
     case Type.SHRUB:
@@ -658,6 +658,13 @@ function getEntityByColor(color: string, portal: Type) {
   }
 }
 
+function switchScene(id: SceneId) {
+  game.sceneId = id;
+  const scene = game.scenes[game.sceneId];
+  const player = scene.entities[scene.playerId];
+  setCameraPosition(player.pos.x, player.pos.y);
+}
+
 const enum GameState {
   NORMAL = "normal",
   CRAFTING_MENU = "crafting_menu",
@@ -665,7 +672,7 @@ const enum GameState {
 
 type Game = {
   scenes: Dict<Scene>;
-  sceneId: SceneId;
+  sceneId: string;
   inventory: Dict<number>;
   tools: Dict<boolean>;
   buildings: Dict<boolean>;
@@ -674,7 +681,7 @@ type Game = {
 
 const game: Game = {
   scenes: {},
-  sceneId: SceneId.HOME,
+  sceneId: "",
   inventory: {
     [Type.ITEM_TWIG]: 0,
     [Type.ITEM_FLINT]: 0,
@@ -703,6 +710,8 @@ async function setup() {
 
   createScene(SceneId.HOME);
   createScene(SceneId.FOREST);
+
+  switchScene(SceneId.HOME);
 
   setCameraSmoothing(0.05);
   setBackgroundColor("#808080");
@@ -752,7 +761,6 @@ function playerMove(e: Entity) {
   if (isInputDown(InputCode.KEY_DOWN)) {
     e.vel.y += 1;
   }
-
   if (getVectorLength(e.vel) > 0) {
     normalizeVector(e.vel);
     scaleVector(e.vel, PLAYER_SPEED);
@@ -856,10 +864,7 @@ function interactWithResource(scene: Scene, player: Entity) {
 function interactWithBuilding(scene: Scene) {
   const e = scene.entities[scene.interactableId];
   if (e.isPortal && game.buildings[e.type]) {
-    game.sceneId = PORTAL_DESTINATION[e.type];
-    const scene = game.scenes[game.sceneId];
-    const player = scene.entities[scene.playerId];
-    setCameraPosition(player.pos.x, player.pos.y);
+    switchScene(PORTAL_DESTINATION[e.type]);
   } else {
     scene.selectedBuildingId = e.id;
     scene.selectedBuildingRecipes.length = 0;
