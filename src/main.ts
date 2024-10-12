@@ -120,6 +120,19 @@ const ASSETS: AssetsManifest = {
       },
     },
   },
+  flashTextures: {
+    atlas_flash: {
+      url: "textures/atlas.png",
+      color: "white",
+      sprites: {
+        tree_flash: [0, 16, 16, 32],
+        rock_flash: [16, 32, 16, 16],
+        shrub_flash: [32, 32, 16, 16],
+        flint_flash: [48, 32, 16, 16],
+        iron_flash: [64, 32, 16, 16],
+      },
+    },
+  },
   renderTextures: {
     grass: {
       width: 512,
@@ -353,6 +366,7 @@ type Entity = {
   angle: number;
   scale: number;
   alpha: number;
+  flashTimer: Timer;
   timer1: Timer;
   timer2: Timer;
   duration: number;
@@ -363,6 +377,7 @@ type Entity = {
   isInteractable: boolean;
   isBuilding: boolean;
   isPortal: boolean;
+  isFlashing: boolean;
 };
 
 function createEntity(scene: Scene, x: number, y: number, type: Type) {
@@ -385,6 +400,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     angle: 0,
     scale: 1,
     alpha: 1,
+    flashTimer: timer(),
     timer1: timer(),
     timer2: timer(),
     duration: 0,
@@ -395,6 +411,7 @@ function createEntity(scene: Scene, x: number, y: number, type: Type) {
     isInteractable: false,
     isBuilding: false,
     isPortal: false,
+    isFlashing: false,
   };
   switch (type) {
     case Type.PLAYER:
@@ -692,7 +709,7 @@ const game: Game = {
     [Type.ITEM_PORTAL_SHARD]: 0,
   },
   tools: {
-    [Type.TOOL_AXE]: false,
+    [Type.TOOL_AXE]: true,
     [Type.TOOL_PICKAXE]: false,
   },
   buildings: {
@@ -733,6 +750,7 @@ function update() {
         updateState(scene, e);
         updateCollisions(scene, e);
         updateHitbox(scene, e);
+        updateFlash(e);
       }
       break;
 
@@ -849,6 +867,8 @@ function interactWithResource(scene: Scene, player: Entity) {
   player.scale = tween(1, 1.25, PLAYER_INTERACT_TIME / 2, "easeInOutSine", player.timer1);
   if (trigger) {
     e.health -= 1;
+    e.isFlashing = true;
+    resetTimer(e.flashTimer);
     if (e.health <= 0) {
       for (const loot of LOOT_TABLE[e.type]) {
         if (roll(loot.chance)) {
@@ -916,6 +936,15 @@ function updateHitbox(scene: Scene, e: Entity) {
     addVector(e.hitbox, e.hitboxOffset);
     const player = scene.entities[scene.playerId];
     e.alpha = doesRectangleContain(e.hitbox, player.pos.x, player.pos.y) ? 0.5 : 1;
+  }
+}
+
+function updateFlash(e: Entity) {
+  if (e.isFlashing) {
+    if (tickTimer(e.flashTimer, 100)) {
+      e.isFlashing = false;
+    }
+    e.scale = tween(1, 1.2, 50, "easeInOutSine", e.flashTimer);
   }
 }
 
@@ -1058,7 +1087,7 @@ function renderEntity(scene: Scene, e: Entity) {
       } else {
         setAlpha(e.alpha);
       }
-      drawSprite(e.spriteId, -e.pivot.x, -e.pivot.y);
+      drawSprite(e.isFlashing ? `${e.spriteId}_flash` : e.spriteId, -e.pivot.x, -e.pivot.y);
       setAlpha(1);
       if (e.id === scene.interactableId) {
         drawSprite(`${e.spriteId}_outline`, -e.pivot.x, -e.pivot.y);
