@@ -11,7 +11,6 @@ import {
   drawSprite,
   drawText,
   drawTexture,
-  getCameraPosition,
   getDelta,
   getFramePerSecond,
   getPixel,
@@ -25,7 +24,6 @@ import {
   isRectangleValid,
   loadAssets,
   normalizeVector,
-  pick,
   random,
   rect,
   Rectangle,
@@ -40,6 +38,7 @@ import {
   scaleVector,
   setAlpha,
   setBackgroundColor,
+  setCameraBounds,
   setCameraPosition,
   setCameraSmoothing,
   setFont,
@@ -334,6 +333,14 @@ const TOOL_REQUIRED: Dict<Type> = {
 const PORTAL_DESTINATION: Dict<SceneId> = {
   [Type.BUILDING_PORTAL_HOME]: SceneId.HOME,
   [Type.BUILDING_PORTAL_FOREST]: SceneId.FOREST,
+};
+
+const ENTITY_COLOR = {
+  "#ff0000": Type.PLAYER,
+  "#405f43": Type.TREE,
+  "#513821": Type.SHRUB,
+  "#474d4f": Type.FLINT,
+  "#8954ce": Type.BUILDING_PORTAL_HOME,
 };
 
 const enum State {
@@ -640,39 +647,26 @@ function createScene(id: SceneId) {
 
     case SceneId.FOREST:
       scene.textureId = "grass";
-      setupSceneFromImage(scene, "forest", Type.BUILDING_PORTAL_HOME);
+      setupSceneFromImage(scene, "forest");
       break;
   }
   game.scenes[id] = scene;
   return scene;
 }
 
-function setupSceneFromImage(scene: Scene, textureId: string, portal: Type) {
+function setupSceneFromImage(scene: Scene, textureId: string) {
   const texture = getTexture(textureId);
   for (let x = 0; x < texture.width; x++) {
     for (let y = 0; y < texture.height; y++) {
       const pixel = getPixel(texture, x, y);
-      const type = getEntityByColor(pixel.hex, portal);
+      const type = ENTITY_COLOR[pixel.hex];
       if (type) {
-        createEntity(scene, x * TILE_SIZE, y * TILE_SIZE, type);
+        createEntity(scene, x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, type);
       }
     }
   }
-}
-
-function getEntityByColor(color: string, portal: Type) {
-  switch (color) {
-    case "#ff0000":
-      return Type.PLAYER;
-    case "#405f43":
-      return Type.TREE;
-    case "#513821":
-      return Type.SHRUB;
-    case "#8954ce":
-      return portal;
-    default:
-      return Type.NONE;
-  }
+  scene.boundary.w = texture.width * TILE_SIZE;
+  scene.boundary.h = texture.height * TILE_SIZE;
 }
 
 function switchScene(id: SceneId) {
@@ -680,6 +674,7 @@ function switchScene(id: SceneId) {
   const scene = game.scenes[game.sceneId];
   const player = scene.entities[scene.playerId];
   setCameraPosition(player.pos.x, player.pos.y);
+  setCameraBounds(scene.boundary);
 }
 
 const enum GameState {
@@ -728,7 +723,7 @@ async function setup() {
   createScene(SceneId.HOME);
   createScene(SceneId.FOREST);
 
-  switchScene(SceneId.HOME);
+  switchScene(SceneId.FOREST);
 
   setCameraSmoothing(0.05);
   setBackgroundColor("#808080");
