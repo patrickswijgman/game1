@@ -16,6 +16,6 @@
     "vite": "^5.4.0"
   },
   "dependencies": {
-    "ridder": "^3.1.0"
+    "ridder": "^3.2.1"
   }
 }

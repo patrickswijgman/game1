@@ -40,6 +40,8 @@ import {
   setBackgroundColor,
   setCameraBounds,
   setCameraPosition,
+  setCameraShakeIntensity,
+  setCameraShakeReduction,
   setCameraSmoothing,
   setFont,
   tickTimer,
@@ -864,6 +866,8 @@ function interactWithResource(scene: Scene, player: Entity) {
     e.health -= 1;
     e.isFlashing = true;
     resetTimer(e.flashTimer);
+    setCameraShakeIntensity(0.5);
+    setCameraShakeReduction(0.05);
     if (e.health <= 0) {
       for (const loot of LOOT_TABLE[e.type]) {
         if (roll(loot.chance)) {
